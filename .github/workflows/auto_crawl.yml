@@ -2,18 +2,22 @@ name: AFK Journey Coupon Auto Crawler
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # 6시간마다 실행
-  workflow_dispatch: # 수동 실행 버튼 생성
+    - cron: '0 */6 * * *' # 6시간마다 자동 실행
+  workflow_dispatch: # 수동 실행 버튼
+
+# 깃허브 봇에게 저장소 파일 쓰기 권한 부여
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: 코드 가져오기
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 파이썬 설정
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
