@@ -4,14 +4,13 @@ import re
 import urllib.request
 from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
-import cloudscraper
 
 # 한국 표준시(KST) 타임존 설정 (UTC+9)
 KST = timezone(timedelta(hours=9))
 NOW_KST_STR = datetime.now(KST).strftime("%Y.%m.%d. %H시 갱신")
 
 # ==========================================
-# 💎 1. 원신(Genshin Impact) 용어 사전 & 크롤러
+# 💎 1. 원신(Genshin Impact) 크롤러
 # ==========================================
 GENSHIN_ITEM_MAP = {
     "Primogem": "원석", "Mora": "모라", "Hero's Wit": "영웅의 경험",
@@ -53,7 +52,7 @@ def translate_genshin_rewards(rewards_text):
     return ", ".join(translated_items) if translated_items else "원석 및 인게임 보상"
 
 def process_genshin():
-    print("=== [원신] 실시간 API 및 웹 크롤링 시작 ===")
+    print("=== [원신] 위키 API 크롤링 시작 ===")
     api_url = "https://genshin-impact.fandom.com/api.php?action=parse&page=Promotional_Code&format=json"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     
@@ -107,7 +106,6 @@ def process_genshin():
     except Exception as e:
         print(f"[원신 수집 예외]: {e}")
 
-    # 백업 기본 세트 보장
     known_genshin_defaults = [
         {"code": "GENSHINGIFT", "rewards": "원석 50개, 영웅의 경험 3개", "status": "ACTIVE", "expiry_note": "상시 유효", "updated_at": NOW_KST_STR},
         {"code": "EVERWINTER", "rewards": "원석 100개, 정제용 마법 광물 10개", "status": "ACTIVE", "expiry_note": "2026년 8월 3일까지", "updated_at": NOW_KST_STR},
@@ -129,16 +127,8 @@ def process_genshin():
 
 
 # ==========================================
-# 🦁 2. AFK 새로운 여정 용어 사전 & 동적 실시간 크롤러
+# 🦁 2. AFK 새로운 여정 정밀 위키 API 크롤러
 # ==========================================
-AFK_REWARD_MAP = {
-    "Dragon Crystal": "용의 결정", "Diamond": "다이아", "Diamonds": "다이아",
-    "Invite Letter": "전체 초대장", "Invite Letters": "전체 초대장",
-    "Epic Invite Letter": "에픽 초대장", "Epic Invite Letters": "에픽 초대장",
-    "Gold": "골드", "Hero Essence": "영웅의 정수", "Soulstone": "영혼석"
-}
-
-# 알려진 쿠폰 정보 사전 (검증된 한글 데이터)
 KNOWN_AFK_MAP = {
     "JOURNEY2YRS": {"rewards": "에픽 초대장 10개, 전체 초대장 10개, 다이아 3,270개, 100,000 골드", "expiry": "2026년 9월 30일까지"},
     "ZC1JJ3UU0N": {"rewards": "다이아 1,000개, 에픽 초대장 5개, 20,000 골드", "expiry": "2026년 8월 말까지"},
@@ -156,20 +146,24 @@ KNOWN_AFK_MAP = {
 
 KNOWN_EXPIRED_AFK = {"E8BESLBQZLZUD", "B52F8N5OPOG7K", "SMALLGIFTFROMPEGGY", "LILYOLENA", "AFKJFUYUYO", "AFKJNEWS2025"}
 
+AFK_REWARD_MAP = {
+    "Dragon Crystal": "용의 결정", "Diamond": "다이아", "Diamonds": "다이아",
+    "Invite Letter": "전체 초대장", "Epic Invite Letter": "에픽 초대장",
+    "Gold": "골드", "Hero Essence": "영웅의 정수", "Soulstone": "영혼석"
+}
+
 def translate_afk_reward(raw_text):
-    """실시간으로 수집된 영문 보상 텍스트를 한글 아이템명으로 자동 번역"""
     translated = raw_text
     for en, ko in AFK_REWARD_MAP.items():
         translated = re.sub(r'\b' + en + r'\b', ko, translated, flags=re.IGNORECASE)
-    translated = re.sub(r'(\d+)\s*([가-힣]+)', r'\2 \1개', translated)
     return translated if translated else "인게임 보상 (다이아 / 소환권 / 골드)"
 
 def process_afk_journey():
-    print("=== [AFK 새로운 여정] 실시간 탐색 및 크롤링 시작 ===")
+    print("=== [AFK 새로운 여정] API 수집 및 검증 시작 ===")
     
     active_coupons, expired_coupons, seen_codes = [], [], set()
     
-    # 1. 알려진 검증 쿠폰 먼저 기본 탑재
+    # 1. 100% 검증된 정식 한글 쿠폰 데이터 세트 로딩
     for code, info in KNOWN_AFK_MAP.items():
         active_coupons.append({
             "code": code,
@@ -190,44 +184,50 @@ def process_afk_journey():
         })
         seen_codes.add(code)
 
-    # 2. 🌐 실시간 웹사이트 탐색 (새로 출시되는 신규 패치 코드 자동 감지 엔진)
-    urls = [
-        "https://buffhub.com/blog/afk-journey/",
-        "https://afkjourney.fandom.com/wiki/Redemption_Codes"
-    ]
+    # 2. 🌐 AFK 여정 공식 위키 API를 통한 정밀 신규 코드 탐색 (사이드바/타게임 원천 차단)
+    afk_api_url = "https://afkjourney.fandom.com/api.php?action=parse&page=Redemption_Codes&format=json"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     
-    blacklist = {'WUTHERING', 'VALORANT', 'ARKNIGHTS', 'FORTNITE', 'BUSINESS', 'LANGUAGE', 'COPYRIGHT', 'PROMOTIONAL', 'REDEMPTION'}
-    
-    scraper = cloudscraper.create_scraper()
-    for url in urls:
-        try:
-            resp = scraper.get(url, timeout=12)
-            if resp.status_code == 200:
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                main_area = soup.find('article') or soup.find('main') or soup
-                
-                # 표(table) 또는 본문 텍스트 내 신규 코드 탐색
-                for row in main_area.find_all(['tr', 'p', 'li']):
-                    text = row.get_text(strip=True)
-                    matches = re.findall(r'\b[A-Za-z0-9]{8,20}\b', text)
-                    for code in matches:
-                        code_upper = code.upper()
-                        if code_upper in seen_codes or any(b in code_upper for b in blacklist):
-                            continue
-                            
-                        # 🎉 새로운 패치/이벤트 코드가 감지됨!
-                        parsed_reward = translate_afk_reward(text)
-                        active_coupons.insert(0, {
-                            "code": code_upper,
-                            "rewards": parsed_reward,
-                            "status": "ACTIVE",
-                            "expiry_note": "신규 유효 코드",
-                            "updated_at": NOW_KST_STR
-                        })
-                        seen_codes.add(code_upper)
-                        print(f"✨ [AFK 신규 리딤코드 자동 감지!]: {code_upper}")
-        except Exception as e:
-            print(f"[AFK 웹 실시간 탐색 예외 - {url}]: {e}")
+    try:
+        req = urllib.request.Request(afk_api_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            res_json = json.loads(resp.read().decode('utf-8'))
+            html = res_json.get('parse', {}).get('text', {}).get('*', '')
+            
+            if html:
+                soup = BeautifulSoup(html, 'html.parser')
+                # 위키 문서 내 표(table)의 <tr> 행만 탐색
+                tables = soup.find_all('table', class_=['article-table', 'wikitable'])
+                for table in tables:
+                    for row in table.find_all('tr'):
+                        cols = row.find_all(['td', 'th'])
+                        if len(cols) < 2: continue
+                        
+                        code_cell = cols[0].get_text(strip=True)
+                        reward_cell = cols[1].get_text(strip=True) if len(cols) > 1 else ""
+                        
+                        # <code> 또는 <b> 태그에서 코드 추출
+                        code_tags = cols[0].find_all(['code', 'b', 'strong'])
+                        raw_codes = [t.get_text(strip=True) for t in code_tags] or [code_cell]
+                        
+                        for r_code in raw_codes:
+                            clean_code = re.sub(r'\[.*?\]', '', r_code).strip().upper()
+                            if not clean_code or len(clean_code) < 5 or clean_code in ["CODE", "REWARDS", "EXPIRED"]:
+                                continue
+                                
+                            if clean_code not in seen_codes:
+                                parsed_reward = translate_afk_reward(reward_cell)
+                                active_coupons.insert(0, {
+                                    "code": clean_code,
+                                    "rewards": parsed_reward,
+                                    "status": "ACTIVE",
+                                    "expiry_note": "신규 유효 코드",
+                                    "updated_at": NOW_KST_STR
+                                })
+                                seen_codes.add(clean_code)
+                                print(f"✨ [AFK 신규 코드 감지]: {clean_code}")
+    except Exception as e:
+        print(f"[AFK 위키 API 예외]: {e}")
 
     final_list = active_coupons + expired_coupons
     with open("afk_journey.json", "w", encoding="utf-8") as f:
