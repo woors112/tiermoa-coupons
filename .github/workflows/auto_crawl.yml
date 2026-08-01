@@ -1,4 +1,4 @@
-name: AFK Journey Coupon Auto Crawler
+name: Tiermoa Multi Game Coupon Crawler
 
 on:
   schedule:
@@ -24,5 +24,5 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add afk_journey.json
+          git add *.json
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update coupons" && git push)
