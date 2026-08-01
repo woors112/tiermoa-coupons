@@ -3,6 +3,8 @@
     "code": "AFKJ10",
     "rewards": "일반 전체 소환권 10개",
     "status": "ACTIVE",
+    "updated_at": "2026년 08월 01일 17시 기준",
+    "expiry_note": "상시 유효 (만료 없음)",
     "created_at": "2026-08-01",
     "expired_at": null
   },
@@ -10,6 +12,8 @@
     "code": "HQC0ZFSC6QYTX",
     "rewards": "다이아 500개, 종이접기 햄스터 5개, 골드 5만개",
     "status": "ACTIVE",
+    "updated_at": "2026년 08월 01일 17시 기준",
+    "expiry_note": "상시 유효 (만료 없음)",
     "created_at": "2026-08-01",
     "expired_at": null
   },
@@ -17,6 +21,8 @@
     "code": "4IYTSNBDXC",
     "rewards": "다이아 1000개, 에픽 초대장 5개, 골드 20만개",
     "status": "EXPIRED",
+    "updated_at": "2026년 08월 01일 17시 기준",
+    "expiry_note": "2026년 08월 01일 만료됨",
     "created_at": "2026-08-01",
     "expired_at": "2026-08-01"
   },
@@ -24,6 +30,8 @@
     "code": "B52F8N5OPOG7K",
     "rewards": "다이아 500개, 종이접기 햄스터 10개, 골드 50만개",
     "status": "EXPIRED",
+    "updated_at": "2026년 08월 01일 17시 기준",
+    "expiry_note": "2026년 08월 01일 만료됨",
     "created_at": "2026-08-01",
     "expired_at": "2026-08-01"
   },
@@ -31,6 +39,8 @@
     "code": "E8BESLBQZLZUD",
     "rewards": "다이아 500개, 종이접기 햄스터 10개, 골드 50만개",
     "status": "EXPIRED",
+    "updated_at": "2026년 08월 01일 17시 기준",
+    "expiry_note": "2026년 08월 01일 만료됨",
     "created_at": "2026-08-01",
     "expired_at": "2026-08-01"
   },
@@ -38,6 +48,8 @@
     "code": "H7PDTYNR61",
     "rewards": "다이아 1000개, 에픽 초대장 5개, 골드 20만개",
     "status": "EXPIRED",
+    "updated_at": "2026년 08월 01일 17시 기준",
+    "expiry_note": "2026년 08월 01일 만료됨",
     "created_at": "2026-08-01",
     "expired_at": "2026-08-01"
   },
@@ -45,6 +57,8 @@
     "code": "SMALLGIFTFROMPEGGY",
     "rewards": "다이아 500개, 골드 2만개",
     "status": "EXPIRED",
+    "updated_at": "2026년 08월 01일 17시 기준",
+    "expiry_note": "2026년 08월 01일 만료됨",
     "created_at": "2026-08-01",
     "expired_at": "2026-08-01"
   },
@@ -52,6 +66,8 @@
     "code": "ZC1JJ3UU0N",
     "rewards": "다이아 1000개, 에픽 초대장 5개, 골드 20만개",
     "status": "EXPIRED",
+    "updated_at": "2026년 08월 01일 17시 기준",
+    "expiry_note": "2026년 08월 01일 만료됨",
     "created_at": "2026-08-01",
     "expired_at": "2026-08-01"
   }
