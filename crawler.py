@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import urllib.parse
 from datetime import datetime
 import cloudscraper
 from bs4 import BeautifulSoup
@@ -14,7 +15,7 @@ GAMES_CONFIG = {
     }
 }
 
-# 2. 쿠폰 코드가 절대 될 수 없는 상단 메뉴 / 시스템 단어 차단 리스트 (Blacklist)
+# 2. 차단 키워드 리스트
 EXCLUDED_CODES = {
     "OVERVIEW", "JOURNEY", "FEATURED", "CHARACTERS", "TIERLIST", "PATCH",
     "NOTES", "NEWS", "EVENTS", "DATABASES", "TERMS", "PRIVACY", "DISCORD",
@@ -26,7 +27,7 @@ EXCLUDED_CODES = {
     "HTTPS", "WWW", "AFK", "LILITH", "GAMES", "COMMUNITY", "SUMMON", "TICKETS"
 }
 
-# 3. 영문 보상 ➔ 한국 공식 서비스 명칭 단어 사전
+# 3. 한국 공식 아이템 번역 사전
 ITEM_TRANSLATIONS = {
     "Epic Invite Letters": "에픽 초대장",
     "Epic Invite Letter": "에픽 초대장",
@@ -42,22 +43,53 @@ ITEM_TRANSLATIONS = {
     "Hero Essence": "영웅의 정수",
     "Soulstones": "영웅 영혼석",
     "Soulstone": "영웅 영혼석",
-    "Hamsters": "햄스터",
-    "Hamster": "햄스터"
+    "Hamsters": "종이접기 햄스터",
+    "Hamster": "종이접기 햄스터"
 }
 
-def extract_and_translate_rewards(text):
-    """텍스트에서 실제 인게임 보상 항목만 정밀하게 추출하여 한국어로 변환"""
+def search_web_for_coupon_status(scraper, code):
+    """실시간 웹 검색을 통해 한국 커뮤니티/블로그 반응 분석 (만료 여부 & 한국어 보상)"""
+    query = f"AFK 새로운 여정 {code}"
+    encoded_query = urllib.parse.quote(query)
+    search_url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
+    
+    is_expired = False
+    korean_reward_text = ""
+    
+    try:
+        res = scraper.get(search_url, timeout=10)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, "html.parser")
+            snippets = soup.select(".result__snippet")
+            
+            combined_snippet = " ".join([s.get_text() for s in snippets])
+            
+            # 만료 감지 키워드 검사
+            expired_keywords = ["만료", "종료", "사용불가", "사용 불가", "기간 지남", "지나서 안됨", "안되네요"]
+            if any(kw in combined_snippet for kw in expired_keywords):
+                # 단, '만료 안됨', '사용 가능' 문구가 같이 있는 경우 재검증
+                if not ("만료 안됨" in combined_snippet or "사용 가능" in combined_snippet):
+                    is_expired = True
+                    
+            # 한국어 보상 텍스트 패턴 추출 시도
+            reward_matches = re.findall(r'(다이아|골드|에픽 초대장|일반 초대장|소환권|영웅의 정수|종이접기 햄스터)\s*\d+개?', combined_snippet)
+            if reward_matches:
+                korean_reward_text = ", ".join(list(dict.fromkeys(reward_matches)))
+                
+    except Exception as e:
+        print(f"[{code}] 웹 검색 중 예외 발생: {e}")
+        
+    return is_expired, korean_reward_text
+
+def translate_rewards_basic(text):
+    """기본 영문 보상을 공식 한국어로 변환"""
     if not text:
         return "게임 아이템 보상"
         
     found_rewards = []
-    
     items_pattern = r'(?:Epic Invite Letters?|Invite Letters?|Stellar Crystals?|Hero Essence|Soulstones?|Diamonds?|Gold|Summon Tickets?|Hamsters?)'
     
-    # 패턴 1: 아이템 x수량 (예: Diamonds x500, Gold x50k, Epic Invite Letters x5)
     pattern1 = re.compile(rf'({items_pattern})\s*x\s*(\d+k?)', re.IGNORECASE)
-    # 패턴 2: 수량 아이템 (예: 10 Summon Tickets)
     pattern2 = re.compile(rf'(\d+)\s*({items_pattern})', re.IGNORECASE)
     
     for match in pattern1.finditer(text):
@@ -83,32 +115,24 @@ def extract_and_translate_rewards(text):
         found_rewards.append(f"{translated_item} {qty_raw}개")
         
     if found_rewards:
-        # 중복 제거 및 깔끔한 출력
-        unique_rewards = list(dict.fromkeys(found_rewards))
-        return ", ".join(unique_rewards)
-    
+        return ", ".join(list(dict.fromkeys(found_rewards)))
+        
     return "게임 아이템 보상"
 
 def process_game_coupons(game_key, config):
-    print(f"[{config['name']}] 쿠폰 정밀 수집 시작...")
+    print(f"[{config['name']}] 실시간 웹 검색 기반 쿠폰 수집 시작...")
     file_name = config["file_name"]
     url = config["url"]
     
-    # 기존 데이터 불러오기
     existing_data = []
     if os.path.exists(file_name):
         try:
             with open(file_name, "r", encoding="utf-8") as f:
                 raw_existing = json.load(f)
-                # 기존 데이터 중 메뉴 단어나 쓰레기 데이터 즉시 정화(삭제)
                 for item in raw_existing:
                     code = item.get("code", "")
-                    rewards = item.get("rewards", "")
-                    if code in EXCLUDED_CODES or len(code) < 5 or len(code) > 20:
-                        continue
-                    if any(noise in rewards.lower() for noise in ["overview", "patch notes", "privacy", "lilith"]):
-                        continue
-                    existing_data.append(item)
+                    if code not in EXCLUDED_CODES and 5 <= len(code) <= 20:
+                        existing_data.append(item)
         except Exception:
             existing_data = []
 
@@ -116,84 +140,86 @@ def process_game_coupons(game_key, config):
         browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
     )
     
-    scraped_coupons = {}
+    raw_coupons = {}
     
     try:
         res = scraper.get(url, timeout=15)
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
-            
-            # 1단계: HTML 카드 및 요소 탐색
             candidates = soup.find_all(['div', 'tr', 'li', 'td', 'p', 'span'])
             
             for cand in candidates:
                 text = cand.get_text(separator=" ").strip()
-                
-                # 대문자 영문+숫자 5~20자리 쿠폰 코드 찾기
+                if len(text) > 250:
+                    continue
+                    
                 codes = re.findall(r'\b[A-Z0-9]{5,20}\b', text)
-                
                 for code in codes:
-                    # 차단 단어 제외
                     if code in EXCLUDED_CODES:
                         continue
-                    
-                    # 보상 추출
-                    reward = extract_and_translate_rewards(text)
-                    
-                    # 더 구체적인 보상 정보로 업데이트
-                    if code not in scraped_coupons or (scraped_coupons[code] == "게임 아이템 보상" and reward != "게임 아이템 보상"):
-                        scraped_coupons[code] = reward
+                    reward = translate_rewards_basic(text)
+                    if code not in raw_coupons or (raw_coupons[code] == "게임 아이템 보상" and reward != "게임 아이템 보상"):
+                        raw_coupons[code] = reward
 
     except Exception as e:
-        print(f"[{config['name']}] 크롤링 오류: {e}")
+        print(f"[{config['name']}] 기본 수집 오류: {e}")
 
-    print(f"수집된 진짜 쿠폰 개수: {len(scraped_coupons)}개")
-
-    # 3단계 라이프사이클 처리
     today = datetime.now()
     today_str = today.strftime("%Y-%m-%d")
     coupon_dict = {item['code']: item for item in existing_data if 'code' in item}
 
-    # A. 신규 및 활성 쿠폰 반영
-    for code, rewards in scraped_coupons.items():
-        if code not in coupon_dict:
-            coupon_dict[code] = {
-                "code": code,
-                "rewards": rewards,
-                "status": "ACTIVE",
-                "created_at": today_str,
-                "expired_at": None
-            }
+    # 4. 각 쿠폰 코드별 실시간 웹 검색 수행
+    for code, base_reward in raw_coupons.items():
+        print(f"🔍 [{code}] 웹 검색으로 만료 여부 및 한국어 정보 확인 중...")
+        is_expired, searched_reward = search_web_for_coupon_status(scraper, code)
+        
+        final_reward = searched_reward if searched_reward else base_reward
+        
+        if is_expired:
+            # 웹 검색 결과 만료된 쿠폰
+            if code in coupon_dict:
+                coupon_dict[code]["status"] = "EXPIRED"
+                if not coupon_dict[code].get("expired_at"):
+                    coupon_dict[code]["expired_at"] = today_str
+            else:
+                coupon_dict[code] = {
+                    "code": code,
+                    "rewards": final_reward,
+                    "status": "EXPIRED",
+                    "created_at": today_str,
+                    "expired_at": today_str
+                }
         else:
-            coupon_dict[code]["rewards"] = rewards
-            if coupon_dict[code]["status"] == "EXPIRED":
+            # 웹 검색 결과 사용 가능한 쿠폰
+            if code not in coupon_dict:
+                coupon_dict[code] = {
+                    "code": code,
+                    "rewards": final_reward,
+                    "status": "ACTIVE",
+                    "created_at": today_str,
+                    "expired_at": None
+                }
+            else:
+                coupon_dict[code]["rewards"] = final_reward
                 coupon_dict[code]["status"] = "ACTIVE"
                 coupon_dict[code]["expired_at"] = None
 
-    # B. 사라진 쿠폰 만료 처리 및 7일 후 삭제
-    scraped_set = set(scraped_coupons.keys())
+    # 5. 만료 후 7일 경과 데이터 완전 삭제
     updated_data = []
-
     for code, item in list(coupon_dict.items()):
-        if code not in scraped_set and item["status"] == "ACTIVE":
-            item["status"] = "EXPIRED"
-            item["expired_at"] = today_str
-
-        # 만료된 지 7일 경과 여부 확인
         if item["status"] == "EXPIRED" and item.get("expired_at"):
             try:
-                expired_date = datetime.strptime(item["expired_at"], "%Y-%m-%d")
-                if (today - expired_date).days > 7:
-                    continue # 7일 경과 시 완전 삭제
+                exp_dt = datetime.strptime(item["expired_at"], "%Y-%m-%d")
+                if (today - exp_dt).days > 7:
+                    continue # 7일 경과 시 목록에서 완전 삭제
             except Exception:
                 pass
-
         updated_data.append(item)
 
     # JSON 저장
     with open(file_name, "w", encoding="utf-8") as f:
         json.dump(updated_data, f, ensure_ascii=False, indent=2)
-    print(f"[{config['name']}] 정밀 수집 완료!")
+    print(f"[{config['name']}] 웹 검색 검증 및 자동화 완료!")
 
 if __name__ == "__main__":
     for game_key, config in GAMES_CONFIG.items():
