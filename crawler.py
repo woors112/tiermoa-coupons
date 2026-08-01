@@ -85,12 +85,14 @@ def fetch_buffhub_data(url):
     return active_coupons, expired_coupons
 
 # ---------------------------------------------------------------------------
-# 5. 메인 처리 프로세스 (상태별 정렬 로직 탑재)
+# 5. 메인 처리 프로세스 (시간 및 만료 문구 자동 생성)
 # ---------------------------------------------------------------------------
 def process_game_coupons(game_key, config):
-    print(f"[{config['name']}] 정밀 팩트체크 및 자동 정렬 처리 시작...")
+    print(f"[{config['name']}] 정밀 팩트체크 및 날짜/시간 필드 생성 시작...")
     file_name = config["file_name"]
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    updated_at_str = now.strftime("%Y년 %m월 %d일 %H시 기준") # 최상단 기준 시각
     
     # BuffHub 수집
     scraped_active, scraped_expired = fetch_buffhub_data(config["buffhub_url"])
@@ -108,19 +110,30 @@ def process_game_coupons(game_key, config):
             status = "ACTIVE"
             reward = PERMANENT_ACTIVE_CODES[code]
             expired_at = None
+            expiry_note = "상시 유효 (만료 없음)"
         elif code in total_expired:
             status = "EXPIRED"
             reward = KNOWN_EXPIRED_CODES.get(code, "게임 아이템 보상")
             expired_at = today_str
+            
+            # 날짜 한글 변환 (2026-08-02 -> 2026년 08월 02일)
+            try:
+                exp_dt = datetime.strptime(expired_at, "%Y-%m-%d")
+                expiry_note = exp_dt.strftime("%Y년 %m월 %d일 만료됨")
+            except Exception:
+                expiry_note = "만료된 쿠폰"
         else:
             status = "ACTIVE"
             reward = scraped_active.get(code, "게임 아이템 보상")
             expired_at = None
+            expiry_note = "기간 미정 (소진 시까지)"
 
         updated_list.append({
             "code": code,
             "rewards": reward,
             "status": status,
+            "updated_at": updated_at_str,
+            "expiry_note": expiry_note,
             "created_at": today_str,
             "expired_at": expired_at
         })
@@ -131,20 +144,20 @@ def process_game_coupons(game_key, config):
         if item["status"] == "EXPIRED" and item.get("expired_at"):
             try:
                 exp_dt = datetime.strptime(item["expired_at"], "%Y-%m-%d")
-                if (datetime.now() - exp_dt).days > 7:
+                if (now - exp_dt).days > 7:
                     continue
             except Exception:
                 pass
         final_list.append(item)
 
-    # 7. 🔥 [핵심] 사용 가능(ACTIVE) 쿠폰 우선 정렬 (ACTIVE -> 0, EXPIRED -> 1)
+    # 7. 사용 가능(ACTIVE) 쿠폰 우선 정렬
     final_list.sort(key=lambda x: (0 if x["status"] == "ACTIVE" else 1, x["code"]))
 
     # JSON 저장
     with open(file_name, "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
         
-    print(f"[{config['name']}] 완료! 활성 쿠폰이 상단으로 정렬되어 저장되었습니다.")
+    print(f"[{config['name']}] 저장 완료! (기준 시각: {updated_at_str})")
 
 if __name__ == "__main__":
     for game_key, config in GAMES_CONFIG.items():
