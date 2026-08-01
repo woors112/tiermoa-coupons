@@ -2,27 +2,33 @@ name: Tiermoa Multi Game Coupon Crawler
 
 on:
   schedule:
-    # 한국 시간(KST) 기준 00:00, 06:00, 12:00, 18:00에 실행 (UTC 15:00, 21:00, 03:00, 09:00)
-    - cron: '0 3,9,15,21 * * *'
-  workflow_dispatch: # 수동 실행 버튼
+    - cron: '0 15,21,3,9 * * *' # KST 기준 00시, 06시, 12시, 18시 자동 실행
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-running: ubuntu-latest
+  crawl:
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
       - name: Install dependencies
         run: |
-          pip install cloudscraper beautifulsoup4
-      - name: Run Crawler
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 cloudscraper
+
+      - name: Run Crawler Script
         run: python crawler.py
-      - name: Commit and Push changes
+
+      - name: Commit and Push updated JSON files
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
           git add *.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update coupons" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update game coupons [KST]" && git push)
