@@ -36,6 +36,24 @@ GENSHIN_ITEM_MAP = {
     "Masked Ball Invitation Letter": "가면 무도회 초대장"
 }
 
+# 영문 월(Month) 이름을 한글로 변환하는 사전
+MONTH_MAP = {
+    "January": "1월", "February": "2월", "March": "3월", "April": "4월",
+    "May": "5월", "June": "6월", "July": "7월", "August": "8월",
+    "September": "9월", "October": "10월", "November": "11월", "December": "12월"
+}
+
+def convert_english_date_to_korean(date_str):
+    """'August 3, 2026' 같은 영문 날짜를 '2026년 8월 3일' 형태로 변환"""
+    match = re.search(r'([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})', date_str)
+    if match:
+        m_en = match.group(1)
+        day = match.group(2)
+        year = match.group(3)
+        m_ko = MONTH_MAP.get(m_en, m_en)
+        return f"{year}년 {m_ko} {day}일"
+    return date_str
+
 def translate_genshin_rewards(rewards_text):
     """영문 보상 텍스트를 원신 한국 정식 명칭 및 수량(개)으로 자동 변환"""
     lines = [line.strip() for line in rewards_text.split('\n') if line.strip()]
@@ -58,7 +76,6 @@ def translate_genshin_rewards(rewards_text):
     return ", ".join(translated_items) if translated_items else "원석 및 인게임 보상"
 
 def fetch_fandom_via_api():
-    """1. Fandom Wiki MediaWiki API 수집"""
     api_url = "https://genshin-impact.fandom.com/api.php?action=parse&page=Promotional_Code&format=json"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     req = urllib.request.Request(api_url, headers=headers)
@@ -71,7 +88,6 @@ def fetch_fandom_via_api():
         return ""
 
 def fetch_pcgamesn():
-    """2. PCGamesN 사이트 수집"""
     url = "https://www.pcgamesn.com/genshin-impact/codes"
     try:
         scraper = cloudscraper.create_scraper()
@@ -83,7 +99,6 @@ def fetch_pcgamesn():
     return ""
 
 def fetch_hoyolab():
-    """3. HoYoLAB 공식 사이트 수집"""
     url = "https://www.hoyolab.com/search/1?keyword=Genshin%20Impact%20redeem%20code"
     try:
         scraper = cloudscraper.create_scraper()
@@ -95,13 +110,13 @@ def fetch_hoyolab():
     return ""
 
 def process_genshin():
-    print("=== [원신 (Fandom API + PCGamesN + HoYoLAB)] 3중 교차 수집 시작 ===")
+    print("=== [원신] 교차 수집 및 날짜 한글화 시작 ===")
     
     active_coupons = []
     expired_coupons = []
     seen_codes = set()
 
-    # --- 1차: Fandom Wiki 정밀 수집 ---
+    # --- 1차: Fandom Wiki 수집 ---
     fandom_html = fetch_fandom_via_api()
     if fandom_html:
         try:
@@ -143,12 +158,17 @@ def process_genshin():
                         if is_expired:
                             status = "EXPIRED"
                             exp_match = re.search(r'Expired:\s*([A-Za-z]+\s+\d{1,2},\s*\d{4})', duration_raw, re.IGNORECASE)
-                            expiry_note = f"{exp_match.group(1)} 만료됨" if exp_match else "사용 만료"
+                            if exp_match:
+                                ko_date = convert_english_date_to_korean(exp_match.group(1))
+                                expiry_note = f"{ko_date} 만료됨"
+                            else:
+                                expiry_note = "사용 만료"
                         else:
                             status = "ACTIVE"
                             valid_match = re.search(r'Valid until:\s*([A-Za-z]+\s+\d{1,2},\s*\d{4})', duration_raw, re.IGNORECASE)
                             if valid_match:
-                                expiry_note = f"{valid_match.group(1)}까지"
+                                ko_date = convert_english_date_to_korean(valid_match.group(1))
+                                expiry_note = f"{ko_date}까지"
                             elif "indefinite" in duration_raw.lower():
                                 expiry_note = "상시 유효"
                             else:
@@ -171,7 +191,7 @@ def process_genshin():
         except Exception as e:
             print(f"[Fandom 파싱 에러]: {e}")
 
-    # --- 2차 & 3차: PCGamesN & HoYoLAB 추가 수집 (누락 보완) ---
+    # --- 2차 & 3차: PCGamesN & HoYoLAB 추가 수집 ---
     extra_htmls = [fetch_pcgamesn(), fetch_hoyolab()]
     for html_text in extra_htmls:
         if not html_text:
@@ -185,11 +205,9 @@ def process_genshin():
                 code_upper = code.upper()
                 if code_upper in seen_codes:
                     continue
-                # 오탐 단어 제외
                 if any(kw in code_upper for kw in ['GENSHIN', 'IMPACT', 'PCGAMESN', 'HOYOLAB', 'ARTICLE', 'VERSION', 'DISCOVERED', 'PROMOTIONAL']):
                     continue
                 
-                # 새로운 코드가 발견되었을 때 등록
                 active_coupons.append({
                     "code": code_upper,
                     "rewards": "원석 및 인게임 보상 (공식 지원)",
@@ -199,13 +217,13 @@ def process_genshin():
                 })
                 seen_codes.add(code_upper)
 
-    # --- 4차: 상시 안전 기본 리딤코드 데이터 세트 보장 ---
+    # --- 4차: 상시 안전 기본 리딤코드 데이터 세트 (날짜 한글화 반영) ---
     full_backups = [
         {"code": "GENSHINGIFT", "rewards": "원석 50개, 영웅의 경험 3개", "status": "ACTIVE", "expiry_note": "상시 유효", "updated_at": NOW_KST_STR},
-        {"code": "EVERWINTER", "rewards": "원석 100개, 정제용 마법 광물 10개", "status": "ACTIVE", "expiry_note": "August 3, 2026까지", "updated_at": NOW_KST_STR},
-        {"code": "ONTOSNEZHNAYA", "rewards": "원석 100개, 영웅의 경험 5개", "status": "ACTIVE", "expiry_note": "August 3, 2026까지", "updated_at": NOW_KST_STR},
-        {"code": "ODETTE0812", "rewards": "원석 100개, 모라 50,000개", "status": "ACTIVE", "expiry_note": "August 3, 2026까지", "updated_at": NOW_KST_STR},
-        {"code": "LEGEDILJKSGM", "rewards": "원석 60개, 모험가의 경험 5개", "status": "ACTIVE", "expiry_note": "September 2, 2026까지", "updated_at": NOW_KST_STR},
+        {"code": "EVERWINTER", "rewards": "원석 100개, 정제용 마법 광물 10개", "status": "ACTIVE", "expiry_note": "2026년 8월 3일까지", "updated_at": NOW_KST_STR},
+        {"code": "ONTOSNEZHNAYA", "rewards": "원석 100개, 영웅의 경험 5개", "status": "ACTIVE", "expiry_note": "2026년 8월 3일까지", "updated_at": NOW_KST_STR},
+        {"code": "ODETTE0812", "rewards": "원석 100개, 모라 50,000개", "status": "ACTIVE", "expiry_note": "2026년 8월 3일까지", "updated_at": NOW_KST_STR},
+        {"code": "LEGEDILJKSGM", "rewards": "원석 60개, 모험가의 경험 5개", "status": "ACTIVE", "expiry_note": "2026년 9월 2일까지", "updated_at": NOW_KST_STR},
         {"code": "2BJ64QRZ7RT8", "rewards": "원석 60개, 모험가의 경험 5개", "status": "ACTIVE", "expiry_note": "유효", "updated_at": NOW_KST_STR},
         {"code": "UIVIBUQM6Q8A", "rewards": "모라 10,000개, 모험가의 경험 10개, 양질의 마법 광물 5개, 절운고추 닭고기 무침 5개, 생선 볶음면 5개", "status": "ACTIVE", "expiry_note": "유효", "updated_at": NOW_KST_STR},
         {"code": "UIVI13C8X156", "rewards": "모라 10,000개, 모험가의 경험 10개, 양질의 마법 광물 5개, 절운고추 닭고기 무침 5개, 생선 볶음면 5개", "status": "ACTIVE", "expiry_note": "유효", "updated_at": NOW_KST_STR}
@@ -219,7 +237,7 @@ def process_genshin():
     with open("genshin.json", "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
         
-    print(f"[genshin.json] 수집 완료! (총 {len(final_list)}개 코드)")
+    print(f"[genshin.json] 저장 완료! (총 {len(final_list)}개 코드)")
 
 def process_afk_journey():
     """AFK 새로운 여정 자동 크롤러"""
