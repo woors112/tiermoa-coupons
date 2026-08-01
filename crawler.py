@@ -87,36 +87,13 @@ def fetch_fandom_via_api():
         print(f"[Fandom API 실패]: {e}")
         return ""
 
-def fetch_pcgamesn():
-    url = "https://www.pcgamesn.com/genshin-impact/codes"
-    try:
-        scraper = cloudscraper.create_scraper()
-        resp = scraper.get(url, timeout=15)
-        if resp.status_code == 200:
-            return resp.text
-    except Exception as e:
-        print(f"[PCGamesN 실패]: {e}")
-    return ""
-
-def fetch_hoyolab():
-    url = "https://www.hoyolab.com/search/1?keyword=Genshin%20Impact%20redeem%20code"
-    try:
-        scraper = cloudscraper.create_scraper()
-        resp = scraper.get(url, timeout=15)
-        if resp.status_code == 200:
-            return resp.text
-    except Exception as e:
-        print(f"[HoYoLAB 실패]: {e}")
-    return ""
-
 def process_genshin():
-    print("=== [원신] 교차 수집 및 날짜 한글화 시작 ===")
+    print("=== [원신] 크롤링 및 날짜 한글화 시작 ===")
     
     active_coupons = []
     expired_coupons = []
     seen_codes = set()
 
-    # --- 1차: Fandom Wiki 수집 ---
     fandom_html = fetch_fandom_via_api()
     if fandom_html:
         try:
@@ -191,33 +168,7 @@ def process_genshin():
         except Exception as e:
             print(f"[Fandom 파싱 에러]: {e}")
 
-    # --- 2차 & 3차: PCGamesN & HoYoLAB 추가 수집 ---
-    extra_htmls = [fetch_pcgamesn(), fetch_hoyolab()]
-    for html_text in extra_htmls:
-        if not html_text:
-            continue
-        soup = BeautifulSoup(html_text, 'html.parser')
-        paragraphs = soup.find_all(['p', 'li', 'td', 'strong', 'code'])
-        for p in paragraphs:
-            text = p.get_text()
-            code_matches = re.findall(r'\b[A-Za-z0-9]{8,18}\b', text)
-            for code in code_matches:
-                code_upper = code.upper()
-                if code_upper in seen_codes:
-                    continue
-                if any(kw in code_upper for kw in ['GENSHIN', 'IMPACT', 'PCGAMESN', 'HOYOLAB', 'ARTICLE', 'VERSION', 'DISCOVERED', 'PROMOTIONAL']):
-                    continue
-                
-                active_coupons.append({
-                    "code": code_upper,
-                    "rewards": "원석 및 인게임 보상 (공식 지원)",
-                    "status": "ACTIVE",
-                    "expiry_note": "유효",
-                    "updated_at": NOW_KST_STR
-                })
-                seen_codes.add(code_upper)
-
-    # --- 4차: 상시 안전 기본 리딤코드 데이터 세트 (날짜 한글화 반영) ---
+    # 백업 기본 세트 (유효성 보장)
     full_backups = [
         {"code": "GENSHINGIFT", "rewards": "원석 50개, 영웅의 경험 3개", "status": "ACTIVE", "expiry_note": "상시 유효", "updated_at": NOW_KST_STR},
         {"code": "EVERWINTER", "rewards": "원석 100개, 정제용 마법 광물 10개", "status": "ACTIVE", "expiry_note": "2026년 8월 3일까지", "updated_at": NOW_KST_STR},
@@ -240,14 +191,24 @@ def process_genshin():
     print(f"[genshin.json] 저장 완료! (총 {len(final_list)}개 코드)")
 
 def process_afk_journey():
-    """AFK 새로운 여정 자동 크롤러"""
-    print("=== [AFK 새로운 여정] 쿠폰 수집 시작 ===")
+    """AFK 새로운 여정 정밀 크롤러 (푸터/타게임 오탐지 완벽 제거)"""
+    print("=== [AFK 새로운 여정] 크롤링 시작 ===")
     url = "https://buffhub.com/blog/afk-journey/"
     
     always_active = ["AFKJ10"]
     known_expired = ["HQCOZFSC6QYTX", "4IYTSNBDXC", "B52F8N5OPOG7K", "E8BESLBQZLZUD", "H7PDTYNR61", "SMALLGIFTFROMPEGGY"]
     reward_overrides = {"AFKJ10": "일반 전체 소환권 10개"}
     
+    # 🚫 수집에서 완전히 제외시킬 타 게임명 및 일반 영문 단어 블랙리스트
+    blacklist_words = {
+        'WUTHERING', 'ARKNIGHTS', 'ENDFIELD', 'SURVIVAL', 'NEVERNESS', 'EVERNESS', 'WHITEOUT', 
+        'IDENTITY', 'GENERATION', 'VALORANT', 'KINGDOMS', 'PLAYSTATION', 'HEARTOPIA', 'VOUCHERS', 
+        'MILIASTRA', 'WONDERLAND', 'FORTNITE', 'MONOPOLY', 'PROTOCOL', 'RESONANCE', 'BREAKOUT', 
+        'INFINITY', 'DEEPSPACE', 'NIGHTMARE', 'UMAMUSUME', 'DIAMONDS', 'HAMSTERS', 'ENHANCEMENT', 
+        'NAVIGATION', 'GLOBENEWSWIRE', 'BENZINGA', 'BUSINESS', 'FIDELITY', 'COPYRIGHT', 'LANGUAGE', 
+        'CURRENCY', 'INDONESIA', 'ITALIANO', 'MESSAGES', 'REDEMPTION', 'JOURNEY', 'VERSION', 'BUFFHUB'
+    }
+
     active_coupons = []
     expired_coupons = []
     seen_codes = set()
@@ -261,7 +222,13 @@ def process_afk_journey():
 
     if html:
         soup = BeautifulSoup(html, 'html.parser')
-        paragraphs = soup.find_all(['p', 'li', 'td'])
+        # 사이드바/푸터 제외하고 메인 본문 영역(article 또는 main)만 지정
+        main_content = soup.find('article') or soup.find('main') or soup.find(class_=re.compile(r'content|post|entry'))
+        
+        target_soup = main_content if main_content else soup
+        
+        # 본문 내 표(table)나 리스트(li/td/code)에서 수집
+        paragraphs = target_soup.find_all(['td', 'code', 'li', 'p'])
         for p in paragraphs:
             text = p.get_text()
             code_matches = re.findall(r'\b[A-Za-z0-9]{8,20}\b', text)
@@ -269,9 +236,12 @@ def process_afk_journey():
                 code_upper = code.upper()
                 if code_upper in seen_codes:
                     continue
-                if any(kw in code_upper for kw in ['BUFFHUB', 'COUPON', 'REDEMPTION', 'JOURNEY', 'VERSION']):
-                    if code_upper not in always_active and code_upper not in known_expired:
-                        continue
+                
+                # 블랙리스트 단어는 모두 스킵
+                if code_upper in blacklist_words:
+                    continue
+                if any(kw in code_upper for kw in blacklist_words):
+                    continue
                 
                 status = "EXPIRED" if code_upper in known_expired else "ACTIVE"
                 reward = reward_overrides.get(code_upper, "인게임 보상 (다이아 / 소환권 / 골드)")
@@ -291,6 +261,7 @@ def process_afk_journey():
                     expired_coupons.append(coupon_obj)
                 seen_codes.add(code_upper)
 
+    # 상시 쿠폰 보장
     for code in always_active:
         if code not in seen_codes:
             active_coupons.append({
