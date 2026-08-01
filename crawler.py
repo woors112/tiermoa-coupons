@@ -5,7 +5,7 @@ from datetime import datetime
 import cloudscraper
 from bs4 import BeautifulSoup
 
-# 1. 게임별 타겟 URL 및 저장 파일 설정
+# 1. 게임별 설정
 GAMES_CONFIG = {
     "afk-journey": {
         "name": "AFK 새로운 여정",
@@ -14,7 +14,7 @@ GAMES_CONFIG = {
     }
 }
 
-# 2. 메뉴/시스템 단어 차단 리스트
+# 2. 쿠폰 코드가 아닌 메인 메뉴/시스템 단어 완벽 차단 리스트
 EXCLUDED_CODES = {
     "OVERVIEW", "JOURNEY", "FEATURED", "CHARACTERS", "TIERLIST", "PATCH",
     "NOTES", "NEWS", "EVENTS", "DATABASES", "TERMS", "PRIVACY", "DISCORD",
@@ -27,7 +27,7 @@ EXCLUDED_CODES = {
     "ARENA", "MOBILE", "ANDROID", "APPLE", "GOOGLE", "STORE", "PLAY", "ONLINE"
 }
 
-# 3. 2026년 8월 기준 검증된 만료 쿠폰 강제 등록 데이터베이스
+# 3. 2026년 8월 기준 국내 검증 완료된 만료 쿠폰 강제 판별 목록
 FORCE_EXPIRED_CODES = {
     "E8BESLBQZLZUD": "다이아 500개, 종이접기 햄스터 10개, 골드 5만개",
     "B52F8N5OPOG7K": "다이아 500개, 종이접기 햄스터 10개, 골드 5만개",
@@ -36,7 +36,7 @@ FORCE_EXPIRED_CODES = {
     "4IYTSNBDXC": "다이아 1000개, 에픽 초대장 5개, 골드 2만개"
 }
 
-# 4. 한국 서비스 공식 아이템 명칭 매핑
+# 4. 한국 서비스 공식 아이템 명칭 변환 사전
 ITEM_TRANSLATIONS = {
     "Epic Invite Letters": "에픽 초대장",
     "Epic Invite Letter": "에픽 초대장",
@@ -57,9 +57,11 @@ ITEM_TRANSLATIONS = {
 }
 
 def extract_and_translate_rewards(code, text):
-    """보상 텍스트 정밀 파싱 및 예외 처리"""
+    """쿠폰별 한국 공식 아이템명 정밀 치환 함수"""
     if code == "AFKJ10":
         return "일반 전체 소환권 10개"
+    if code == "HQC0ZFSC6QYTX":
+        return "다이아 500개, 종이접기 햄스터 5개, 골드 5만개"
         
     if not text:
         return "게임 아이템 보상"
@@ -98,7 +100,7 @@ def extract_and_translate_rewards(code, text):
     return "게임 아이템 보상"
 
 def process_game_coupons(game_key, config):
-    print(f"[{config['name']}] 정밀 수집 및 실시간 검증 시작...")
+    print(f"[{config['name']}] 정밀 크롤링 수집 시작...")
     file_name = config["file_name"]
     url = config["url"]
     
@@ -133,9 +135,8 @@ def process_game_coupons(game_key, config):
     today_str = today.strftime("%Y-%m-%d")
     coupon_dict = {}
 
-    # 1. 크롤링된 데이터 상태 분류 및 검증
+    # 1. 수집된 쿠폰 정밀 상태 분류
     for code, reward in raw_coupons.items():
-        # 만료 확인된 쿠폰 검증 처리
         if code in FORCE_EXPIRED_CODES:
             coupon_dict[code] = {
                 "code": code,
@@ -153,7 +154,7 @@ def process_game_coupons(game_key, config):
                 "expired_at": None
             }
 
-    # 2. 만료 데이터베이스에 있지만 크롤링에서 누락된 경우 강제 추가
+    # 2. 만료 쿠폰 강제 보완
     for exp_code, exp_reward in FORCE_EXPIRED_CODES.items():
         if exp_code not in coupon_dict:
             coupon_dict[exp_code] = {
@@ -164,14 +165,14 @@ def process_game_coupons(game_key, config):
                 "expired_at": today_str
             }
 
-    # 3. 만료 후 7일 경과 데이터 삭제 처리
+    # 3. 만료 7일 경과 데이터 완전 삭제
     final_list = []
     for code, item in coupon_dict.items():
         if item["status"] == "EXPIRED" and item.get("expired_at"):
             try:
                 exp_dt = datetime.strptime(item["expired_at"], "%Y-%m-%d")
                 if (today - exp_dt).days > 7:
-                    continue # 7일 지난 만료 쿠폰 완전 삭제
+                    continue
             except Exception:
                 pass
         final_list.append(item)
@@ -179,7 +180,7 @@ def process_game_coupons(game_key, config):
     # JSON 저장
     with open(file_name, "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
-    print(f"[{config['name']}] 최신 기준 상태 검증 완료!")
+    print(f"[{config['name']}] 최종 검증 완료!")
 
 if __name__ == "__main__":
     for game_key, config in GAMES_CONFIG.items():
