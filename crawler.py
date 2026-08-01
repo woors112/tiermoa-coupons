@@ -14,7 +14,7 @@ GAMES_CONFIG = {
     }
 }
 
-# 2. 절대 쿠폰 코드가 아닌 상단 메뉴 / 시스템 단어 차단 리스트 (Blacklist)
+# 2. 쿠폰 코드가 절대 될 수 없는 상단 메뉴 / 시스템 단어 차단 리스트 (Blacklist)
 EXCLUDED_CODES = {
     "OVERVIEW", "JOURNEY", "FEATURED", "CHARACTERS", "TIERLIST", "PATCH",
     "NOTES", "NEWS", "EVENTS", "DATABASES", "TERMS", "PRIVACY", "DISCORD",
@@ -22,22 +22,23 @@ EXCLUDED_CODES = {
     "MODES", "RESOURCES", "COOKIES", "POLICY", "RIGHTS", "RESERVED", "SEARCH",
     "ACTIVE", "EXPIRED", "SHOW", "MORE", "LESS", "READ", "CLICK", "COPY",
     "REDEEM", "GAME", "CODE", "CODES", "LATEST", "BUILD", "UPDATE", "HOME",
-    "CONTACT", "ABOUT", "ALL", "TIER", "LIST", "ITEM", "ITEMS", "HERO", "HEROES"
+    "CONTACT", "ABOUT", "ALL", "TIER", "LIST", "ITEM", "ITEMS", "HERO", "HEROES",
+    "HTTPS", "WWW", "AFK", "LILITH", "GAMES", "COMMUNITY", "SUMMON", "TICKETS"
 }
 
-# 3. 영문 보상 ➔ 한국 공식 서비스 명칭 자동 변환 매핑
+# 3. 영문 보상 ➔ 한국 공식 서비스 명칭 단어 사전
 ITEM_TRANSLATIONS = {
-    "Diamonds": "다이아",
-    "Diamond": "다이아",
-    "Gold": "골드",
     "Epic Invite Letters": "에픽 초대장",
     "Epic Invite Letter": "에픽 초대장",
     "Invite Letters": "일반 초대장",
     "Invite Letter": "일반 초대장",
-    "Summon Tickets": "소환권",
-    "Summon Ticket": "소환권",
     "Stellar Crystals": "별의 결정",
     "Stellar Crystal": "별의 결정",
+    "Summon Tickets": "소환권",
+    "Summon Ticket": "소환권",
+    "Diamonds": "다이아",
+    "Diamond": "다이아",
+    "Gold": "골드",
     "Hero Essence": "영웅의 정수",
     "Soulstones": "영웅 영혼석",
     "Soulstone": "영웅 영혼석",
@@ -45,42 +46,71 @@ ITEM_TRANSLATIONS = {
     "Hamster": "햄스터"
 }
 
-def clean_and_translate_rewards(raw_text):
-    """보상 텍스트 정제 및 한국어 공식 명칭 변환"""
-    if not raw_text:
+def extract_and_translate_rewards(text):
+    """텍스트에서 실제 인게임 보상 항목만 정밀하게 추출하여 한국어로 변환"""
+    if not text:
         return "게임 아이템 보상"
-    
-    # 날짜(예: 01.06.2026, 28.05.2026 등) 및 불필요한 단어 제거
-    text = re.sub(r'\b\d{2}\.\d{2}\.\d{4}\b', '', raw_text)
-    text = re.sub(r'(Copy|Copied|Active|Expired|Show expired codes)', '', text, flags=re.IGNORECASE)
-    
-    # 영문 아이템 한국어로 치환
-    for eng, kor in ITEM_TRANSLATIONS.items():
-        pattern = re.compile(re.escape(eng), re.IGNORECASE)
-        text = pattern.sub(kor, text)
         
-    # 수량 단위 예쁘게 정리 (x50k -> 5만개, x500 -> 500개)
-    text = re.sub(r'x(\d+)k', r'\1만개', text, flags=re.IGNORECASE)
-    text = re.sub(r'x(\d+)', r'\1개', text, flags=re.IGNORECASE)
+    found_rewards = []
     
-    # 공백 및 구문 기호 정리
-    text = re.sub(r'\s+', ' ', text).strip(', ')
-    return text if len(text) > 0 and len(text) < 100 else "게임 아이템 보상"
+    items_pattern = r'(?:Epic Invite Letters?|Invite Letters?|Stellar Crystals?|Hero Essence|Soulstones?|Diamonds?|Gold|Summon Tickets?|Hamsters?)'
+    
+    # 패턴 1: 아이템 x수량 (예: Diamonds x500, Gold x50k, Epic Invite Letters x5)
+    pattern1 = re.compile(rf'({items_pattern})\s*x\s*(\d+k?)', re.IGNORECASE)
+    # 패턴 2: 수량 아이템 (예: 10 Summon Tickets)
+    pattern2 = re.compile(rf'(\d+)\s*({items_pattern})', re.IGNORECASE)
+    
+    for match in pattern1.finditer(text):
+        item_raw, qty_raw = match.group(1), match.group(2)
+        translated_item = "아이템"
+        for eng, kor in ITEM_TRANSLATIONS.items():
+            if eng.lower() == item_raw.lower():
+                translated_item = kor
+                break
+        
+        qty_str = qty_raw.lower().replace('k', '만개')
+        if not qty_str.endswith('만개'):
+            qty_str += '개'
+        found_rewards.append(f"{translated_item} {qty_str}")
+        
+    for match in pattern2.finditer(text):
+        qty_raw, item_raw = match.group(1), match.group(2)
+        translated_item = "아이템"
+        for eng, kor in ITEM_TRANSLATIONS.items():
+            if eng.lower() == item_raw.lower():
+                translated_item = kor
+                break
+        found_rewards.append(f"{translated_item} {qty_raw}개")
+        
+    if found_rewards:
+        # 중복 제거 및 깔끔한 출력
+        unique_rewards = list(dict.fromkeys(found_rewards))
+        return ", ".join(unique_rewards)
+    
+    return "게임 아이템 보상"
 
 def process_game_coupons(game_key, config):
-    print(f"[{config['name']}] 쿠폰 수집 시작...")
+    print(f"[{config['name']}] 쿠폰 정밀 수집 시작...")
     file_name = config["file_name"]
     url = config["url"]
     
     # 기존 데이터 불러오기
+    existing_data = []
     if os.path.exists(file_name):
         try:
             with open(file_name, "r", encoding="utf-8") as f:
-                existing_data = json.load(f)
+                raw_existing = json.load(f)
+                # 기존 데이터 중 메뉴 단어나 쓰레기 데이터 즉시 정화(삭제)
+                for item in raw_existing:
+                    code = item.get("code", "")
+                    rewards = item.get("rewards", "")
+                    if code in EXCLUDED_CODES or len(code) < 5 or len(code) > 20:
+                        continue
+                    if any(noise in rewards.lower() for noise in ["overview", "patch notes", "privacy", "lilith"]):
+                        continue
+                    existing_data.append(item)
         except Exception:
             existing_data = []
-    else:
-        existing_data = []
 
     scraper = cloudscraper.create_scraper(
         browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
@@ -93,30 +123,26 @@ def process_game_coupons(game_key, config):
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
             
-            # 텍스트 길이가 250자 이하인 개별 카드/행 상자만 정밀 타겟팅
-            candidates = soup.find_all(['div', 'tr', 'li', 'td'])
+            # 1단계: HTML 카드 및 요소 탐색
+            candidates = soup.find_all(['div', 'tr', 'li', 'td', 'p', 'span'])
             
             for cand in candidates:
                 text = cand.get_text(separator=" ").strip()
                 
-                # 자식 요소가 너무 많거나 200자 이상인 큰 틀(전체 메뉴/페이지)은 스킵
-                if len(text) > 200:
-                    continue
-                
-                # 5~20자 영문 대문자+숫자 쿠폰 패턴 추출
+                # 대문자 영문+숫자 5~20자리 쿠폰 코드 찾기
                 codes = re.findall(r'\b[A-Z0-9]{5,20}\b', text)
                 
                 for code in codes:
-                    # 차단 리스트에 포함된 메뉴 이름이면 제외
+                    # 차단 단어 제외
                     if code in EXCLUDED_CODES:
                         continue
                     
-                    # 보상 텍스트 정제
-                    raw_reward = text.replace(code, "").strip()
-                    translated_reward = clean_and_translate_rewards(raw_reward)
+                    # 보상 추출
+                    reward = extract_and_translate_rewards(text)
                     
-                    if code not in scraped_coupons:
-                        scraped_coupons[code] = translated_reward
+                    # 더 구체적인 보상 정보로 업데이트
+                    if code not in scraped_coupons or (scraped_coupons[code] == "게임 아이템 보상" and reward != "게임 아이템 보상"):
+                        scraped_coupons[code] = reward
 
     except Exception as e:
         print(f"[{config['name']}] 크롤링 오류: {e}")
@@ -144,7 +170,7 @@ def process_game_coupons(game_key, config):
                 coupon_dict[code]["status"] = "ACTIVE"
                 coupon_dict[code]["expired_at"] = None
 
-    # B. 만료 처리 및 7일 후 삭제
+    # B. 사라진 쿠폰 만료 처리 및 7일 후 삭제
     scraped_set = set(scraped_coupons.keys())
     updated_data = []
 
@@ -153,11 +179,12 @@ def process_game_coupons(game_key, config):
             item["status"] = "EXPIRED"
             item["expired_at"] = today_str
 
+        # 만료된 지 7일 경과 여부 확인
         if item["status"] == "EXPIRED" and item.get("expired_at"):
             try:
                 expired_date = datetime.strptime(item["expired_at"], "%Y-%m-%d")
                 if (today - expired_date).days > 7:
-                    continue # 7일 경과 시 삭제
+                    continue # 7일 경과 시 완전 삭제
             except Exception:
                 pass
 
