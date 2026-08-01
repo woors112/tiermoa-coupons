@@ -1,12 +1,5 @@
 [
   {
-    "code": "JOURNEY2YRS",
-    "rewards": "에픽 초대장 10개, 전체 초대장 10개, 다이아 3,270개, 100,000 골드",
-    "status": "ACTIVE",
-    "expiry_note": "2026년 9월 30일까지",
-    "updated_at": "2026.08.02. 05시 갱신"
-  },
-  {
     "code": "ZC1JJ3UU0N",
     "rewards": "다이아 1,000개, 에픽 초대장 5개, 20,000 골드",
     "status": "ACTIVE",
@@ -84,21 +77,7 @@
     "updated_at": "2026.08.02. 05시 갱신"
   },
   {
-    "code": "AFKJNEWS2025",
-    "rewards": "사용 완료/만료 보상",
-    "status": "EXPIRED",
-    "expiry_note": "사용 만료",
-    "updated_at": "2026.08.02. 05시 갱신"
-  },
-  {
-    "code": "SMALLGIFTFROMPEGGY",
-    "rewards": "사용 완료/만료 보상",
-    "status": "EXPIRED",
-    "expiry_note": "사용 만료",
-    "updated_at": "2026.08.02. 05시 갱신"
-  },
-  {
-    "code": "AFKJFUYUYO",
+    "code": "B52F8N5OPOG7K",
     "rewards": "사용 완료/만료 보상",
     "status": "EXPIRED",
     "expiry_note": "사용 만료",
@@ -112,14 +91,28 @@
     "updated_at": "2026.08.02. 05시 갱신"
   },
   {
-    "code": "LILYOLENA",
+    "code": "SMALLGIFTFROMPEGGY",
     "rewards": "사용 완료/만료 보상",
     "status": "EXPIRED",
     "expiry_note": "사용 만료",
     "updated_at": "2026.08.02. 05시 갱신"
   },
   {
-    "code": "B52F8N5OPOG7K",
+    "code": "AFKJNEWS2025",
+    "rewards": "사용 완료/만료 보상",
+    "status": "EXPIRED",
+    "expiry_note": "사용 만료",
+    "updated_at": "2026.08.02. 05시 갱신"
+  },
+  {
+    "code": "AFKJFUYUYO",
+    "rewards": "사용 완료/만료 보상",
+    "status": "EXPIRED",
+    "expiry_note": "사용 만료",
+    "updated_at": "2026.08.02. 05시 갱신"
+  },
+  {
+    "code": "LILYOLENA",
     "rewards": "사용 완료/만료 보상",
     "status": "EXPIRED",
     "expiry_note": "사용 만료",
