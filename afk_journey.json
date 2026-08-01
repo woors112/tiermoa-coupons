@@ -1,74 +1,282 @@
 [
   {
+    "code": "WUTHERING",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "ARKNIGHTS",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "ENDFIELD",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "SURVIVAL",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "NEVERNESS",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "EVERNESS",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "WHITEOUT",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "IDENTITY",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "GENERATION",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "VALORANT",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "KINGDOMS",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "PLAYSTATION",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "HEARTOPIA",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "VOUCHERS",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "MILIASTRA",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "WONDERLAND",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "FORTNITE",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "MONOPOLY",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "PROTOCOL",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "RESONANCE",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "BREAKOUT",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "INFINITY",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "DEEPSPACE",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "NIGHTMARE",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "UMAMUSUME",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "DIAMONDS",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "HAMSTERS",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "ENHANCEMENT",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "NAVIGATION",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "GLOBENEWSWIRE",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "BENZINGA",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "BUSINESS",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "FIDELITY",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "COPYRIGHT",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "LANGUAGE",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "CURRENCY",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "INDONESIA",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "ITALIANO",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "MESSAGES",
+    "rewards": "인게임 보상 (다이아 / 소환권 / 골드)",
+    "status": "ACTIVE",
+    "expiry_note": "만료일 미정",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
     "code": "AFKJ10",
     "rewards": "일반 전체 소환권 10개",
     "status": "ACTIVE",
-    "updated_at": "2026년 08월 01일 17시 기준",
-    "expiry_note": "상시 유효 (만료 없음)",
-    "created_at": "2026-08-01",
-    "expired_at": null
-  },
-  {
-    "code": "HQC0ZFSC6QYTX",
-    "rewards": "다이아 500개, 종이접기 햄스터 5개, 골드 5만개",
-    "status": "ACTIVE",
-    "updated_at": "2026년 08월 01일 17시 기준",
-    "expiry_note": "상시 유효 (만료 없음)",
-    "created_at": "2026-08-01",
-    "expired_at": null
-  },
-  {
-    "code": "4IYTSNBDXC",
-    "rewards": "다이아 1000개, 에픽 초대장 5개, 골드 20만개",
-    "status": "EXPIRED",
-    "updated_at": "2026년 08월 01일 17시 기준",
-    "expiry_note": "2026년 08월 01일 만료됨",
-    "created_at": "2026-08-01",
-    "expired_at": "2026-08-01"
-  },
-  {
-    "code": "B52F8N5OPOG7K",
-    "rewards": "다이아 500개, 종이접기 햄스터 10개, 골드 50만개",
-    "status": "EXPIRED",
-    "updated_at": "2026년 08월 01일 17시 기준",
-    "expiry_note": "2026년 08월 01일 만료됨",
-    "created_at": "2026-08-01",
-    "expired_at": "2026-08-01"
-  },
-  {
-    "code": "E8BESLBQZLZUD",
-    "rewards": "다이아 500개, 종이접기 햄스터 10개, 골드 50만개",
-    "status": "EXPIRED",
-    "updated_at": "2026년 08월 01일 17시 기준",
-    "expiry_note": "2026년 08월 01일 만료됨",
-    "created_at": "2026-08-01",
-    "expired_at": "2026-08-01"
-  },
-  {
-    "code": "H7PDTYNR61",
-    "rewards": "다이아 1000개, 에픽 초대장 5개, 골드 20만개",
-    "status": "EXPIRED",
-    "updated_at": "2026년 08월 01일 17시 기준",
-    "expiry_note": "2026년 08월 01일 만료됨",
-    "created_at": "2026-08-01",
-    "expired_at": "2026-08-01"
-  },
-  {
-    "code": "SMALLGIFTFROMPEGGY",
-    "rewards": "다이아 500개, 골드 2만개",
-    "status": "EXPIRED",
-    "updated_at": "2026년 08월 01일 17시 기준",
-    "expiry_note": "2026년 08월 01일 만료됨",
-    "created_at": "2026-08-01",
-    "expired_at": "2026-08-01"
-  },
-  {
-    "code": "ZC1JJ3UU0N",
-    "rewards": "다이아 1000개, 에픽 초대장 5개, 골드 20만개",
-    "status": "EXPIRED",
-    "updated_at": "2026년 08월 01일 17시 기준",
-    "expiry_note": "2026년 08월 01일 만료됨",
-    "created_at": "2026-08-01",
-    "expired_at": "2026-08-01"
+    "expiry_note": "상시 유효",
+    "updated_at": "2026.08.02. 04시 갱신"
   }
 ]
