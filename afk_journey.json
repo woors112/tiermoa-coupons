@@ -49,24 +49,17 @@
     "expired_at": null
   },
   {
-    "code": "ARENA",
-    "rewards": "게임 아이템 보상",
-    "status": "ACTIVE",
-    "created_at": "2026-08-01",
-    "expired_at": null
-  },
-  {
     "code": "RESOURCE",
     "rewards": "게임 아이템 보상",
-    "status": "ACTIVE",
+    "status": "EXPIRED",
     "created_at": "2026-08-01",
-    "expired_at": null
+    "expired_at": "2026-08-01"
   },
   {
     "code": "AFFILIATED",
     "rewards": "게임 아이템 보상",
-    "status": "ACTIVE",
+    "status": "EXPIRED",
     "created_at": "2026-08-01",
-    "expired_at": null
+    "expired_at": "2026-08-01"
   }
 ]
