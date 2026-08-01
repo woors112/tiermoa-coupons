@@ -20,7 +20,7 @@ GAMES_CONFIG = {
 }
 
 # ---------------------------------------------------------------------------
-# 2. 필수 차단 블랙리스트 (ARENA 등 메뉴/시스템 단어 완벽 차단)
+# 2. 필수 차단 블랙리스트 (메뉴 및 시스템 단어 차단)
 # ---------------------------------------------------------------------------
 EXCLUDED_CODES = {
     "CODE", "CODES", "STATUS", "EXPIRED", "ACTIVE", "REDEMPTION", "REWARD",
@@ -32,7 +32,7 @@ EXCLUDED_CODES = {
 }
 
 # ---------------------------------------------------------------------------
-# 3. 팩트체크 검증 데이터베이스 (동적 크롤링 실패 시 안전장치)
+# 3. 팩트체크 검증 데이터베이스
 # ---------------------------------------------------------------------------
 PERMANENT_ACTIVE_CODES = {
     "AFKJ10": "일반 전체 소환권 10개",
@@ -85,21 +85,20 @@ def fetch_buffhub_data(url):
     return active_coupons, expired_coupons
 
 # ---------------------------------------------------------------------------
-# 5. 메인 처리 프로세스
+# 5. 메인 처리 프로세스 (상태별 정렬 로직 탑재)
 # ---------------------------------------------------------------------------
 def process_game_coupons(game_key, config):
-    print(f"[{config['name']}] 정밀 팩트체크 크롤링 시작...")
+    print(f"[{config['name']}] 정밀 팩트체크 및 자동 정렬 처리 시작...")
     file_name = config["file_name"]
     today_str = datetime.now().strftime("%Y-%m-%d")
     
     # BuffHub 수집
     scraped_active, scraped_expired = fetch_buffhub_data(config["buffhub_url"])
     
-    # 팩트체크 수동 데이터와 동적 수집 데이터 통합
     total_expired = scraped_expired.union(set(KNOWN_EXPIRED_CODES.keys()))
     all_codes = set(scraped_active.keys()).union(set(PERMANENT_ACTIVE_CODES.keys())).union(total_expired)
     
-    final_list = []
+    updated_list = []
     
     for code in all_codes:
         if code in EXCLUDED_CODES:
@@ -118,7 +117,7 @@ def process_game_coupons(game_key, config):
             reward = scraped_active.get(code, "게임 아이템 보상")
             expired_at = None
 
-        final_list.append({
+        updated_list.append({
             "code": code,
             "rewards": reward,
             "status": status,
@@ -126,11 +125,26 @@ def process_game_coupons(game_key, config):
             "expired_at": expired_at
         })
 
+    # 6. 만료 후 7일 지난 쿠폰 완전 자동 삭제
+    final_list = []
+    for item in updated_list:
+        if item["status"] == "EXPIRED" and item.get("expired_at"):
+            try:
+                exp_dt = datetime.strptime(item["expired_at"], "%Y-%m-%d")
+                if (datetime.now() - exp_dt).days > 7:
+                    continue
+            except Exception:
+                pass
+        final_list.append(item)
+
+    # 7. 🔥 [핵심] 사용 가능(ACTIVE) 쿠폰 우선 정렬 (ACTIVE -> 0, EXPIRED -> 1)
+    final_list.sort(key=lambda x: (0 if x["status"] == "ACTIVE" else 1, x["code"]))
+
     # JSON 저장
     with open(file_name, "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
         
-    print(f"[{config['name']}] 완료! 활성: {sum(1 for x in final_list if x['status'] == 'ACTIVE')}개, 만료: {sum(1 for x in final_list if x['status'] == 'EXPIRED')}개")
+    print(f"[{config['name']}] 완료! 활성 쿠폰이 상단으로 정렬되어 저장되었습니다.")
 
 if __name__ == "__main__":
     for game_key, config in GAMES_CONFIG.items():
