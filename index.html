@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AFK 새로운 여정 최신 쿠폰</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; padding: 40px 16px; min-height: 100vh; }
+    .container { width: 100%; max-width: 680px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .header-title { font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+    .header-info { display: flex; align-items: center; gap: 10px; }
+    .update-time { font-size: 13px; color: #94a3b8; font-weight: 500; }
+    .badge-auto { background-color: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .coupon-list { display: flex; flex-direction: column; gap: 14px; }
+    .coupon-card { background-color: #1e293b; border-radius: 12px; padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #334155; }
+    .coupon-card.active { border-left: 4px solid #ff477e; box-shadow: 0 4px 20px rgba(255, 71, 126, 0.08); }
+    .coupon-card.expired { opacity: 0.6; background-color: #162032; }
+    .coupon-left { display: flex; flex-direction: column; gap: 6px; }
+    .coupon-code { font-size: 18px; font-weight: 800; letter-spacing: 0.5px; }
+    .coupon-card.expired .coupon-code { text-decoration: line-through; color: #64748b; }
+    .coupon-reward { font-size: 14px; color: #cbd5e1; display: flex; align-items: center; gap: 6px; }
+    .coupon-right { display: flex; align-items: center; gap: 14px; }
+    .expiry-text { font-size: 13px; color: #94a3b8; font-weight: 500; white-space: nowrap; }
+    .btn-copy { background: linear-gradient(135deg, #ff477e, #e11d48); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; transition: transform 0.1s ease; white-space: nowrap; }
+    .btn-copy:hover { transform: translateY(-1px); }
+    .btn-disabled { background-color: #334155; color: #94a3b8; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: not-allowed; white-space: nowrap; }
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); background-color: #10b981; color: white; padding: 12px 24px; border-radius: 30px; font-size: 14px; font-weight: 700; transition: transform 0.3s ease; z-index: 9999; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-title">🎁 AFK 새로운 여정 최신 쿠폰</div>
+      <div class="header-info">
+        <span id="update-time" class="update-time">-</span>
+        <span class="badge-auto">⚡ 6시간마다 자동 갱신</span>
+      </div>
+    </div>
+    <div id="coupon-list" class="coupon-list"></div>
+  </div>
+  <div id="toast" class="toast">📋 쿠폰 코드가 복사되었습니다!</div>
+
+  <script>
+    async function loadCoupons() {
+      try {
+        const response = await fetch('afk_journey.json?v=' + new Date().getTime());
+        const data = await response.json();
+        if (!data || data.length === 0) return;
+
+        const updateTimeEl = document.getElementById('update-time');
+        if (data[0].updated_at) updateTimeEl.innerText = data[0].updated_at;
+
+        const listContainer = document.getElementById('coupon-list');
+        listContainer.innerHTML = '';
+
+        data.forEach(item => {
+          const isActive = item.status === 'ACTIVE';
+          const cardHtml = `
+            <div class="coupon-card ${isActive ? 'active' : 'expired'}">
+              <div class="coupon-left">
+                <div class="coupon-code">${item.code}</div>
+                <div class="coupon-reward">🎁 ${item.rewards}</div>
+              </div>
+              <div class="coupon-right">
+                <span class="expiry-text">${item.expiry_note || ''}</span>
+                ${isActive ? `
+                  <button class="btn-copy" onclick="copyToClipboard('${item.code}', this)">복사하기</button>
+                ` : `
+                  <button class="btn-disabled" disabled>사용 불가 (만료됨)</button>
+                `}
+              </div>
+            </div>
+          `;
+          listContainer.insertAdjacentHTML('beforeend', cardHtml);
+        });
+      } catch (error) {
+        console.error('데이터 로드 실패:', error);
+      }
+    }
+
+    function copyToClipboard(code, buttonEl) {
+      navigator.clipboard.writeText(code).then(() => {
+        const originalText = buttonEl.innerText;
+        buttonEl.innerText = '복사완료!';
+        buttonEl.style.background = '#10b981';
+        const toast = document.getElementById('toast');
+        toast.classList.add('show');
+        setTimeout(() => {
+          buttonEl.innerText = originalText;
+          buttonEl.style.background = '';
+          toast.classList.remove('show');
+        }, 1500);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', loadCoupons);
+  </script>
+</body>
+</html>
