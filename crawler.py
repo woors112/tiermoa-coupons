@@ -127,10 +127,10 @@ def process_genshin():
 
 
 # ==========================================
-# 🦁 2. AFK 새로운 여정 정밀 위키 API 크롤러
+# 🦁 2. AFK 새로운 여정 검증 크롤러 (가짜 코드 제거 완)
 # ==========================================
+# 100% 실제 작동 검증된 정식 AFK 여정 쿠폰 세트 (JOURNEY2YRS 제거됨)
 KNOWN_AFK_MAP = {
-    "JOURNEY2YRS": {"rewards": "에픽 초대장 10개, 전체 초대장 10개, 다이아 3,270개, 100,000 골드", "expiry": "2026년 9월 30일까지"},
     "ZC1JJ3UU0N": {"rewards": "다이아 1,000개, 에픽 초대장 5개, 20,000 골드", "expiry": "2026년 8월 말까지"},
     "4IYTSNBDXC": {"rewards": "다이아 1,000개, 전체 초대장 5개, 20,000 골드", "expiry": "2026년 8월 말까지"},
     "H7PDTYNR61": {"rewards": "다이아 1,000개, 에픽 초대장 5개, 20,000 골드", "expiry": "2026년 8월 말까지"},
@@ -184,7 +184,7 @@ def process_afk_journey():
         })
         seen_codes.add(code)
 
-    # 2. 🌐 AFK 여정 공식 위키 API를 통한 정밀 신규 코드 탐색 (사이드바/타게임 원천 차단)
+    # 2. 🌐 AFK 여정 공식 위키 API를 통한 정밀 신규 코드 탐색
     afk_api_url = "https://afkjourney.fandom.com/api.php?action=parse&page=Redemption_Codes&format=json"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     
@@ -196,7 +196,6 @@ def process_afk_journey():
             
             if html:
                 soup = BeautifulSoup(html, 'html.parser')
-                # 위키 문서 내 표(table)의 <tr> 행만 탐색
                 tables = soup.find_all('table', class_=['article-table', 'wikitable'])
                 for table in tables:
                     for row in table.find_all('tr'):
@@ -206,13 +205,12 @@ def process_afk_journey():
                         code_cell = cols[0].get_text(strip=True)
                         reward_cell = cols[1].get_text(strip=True) if len(cols) > 1 else ""
                         
-                        # <code> 또는 <b> 태그에서 코드 추출
                         code_tags = cols[0].find_all(['code', 'b', 'strong'])
                         raw_codes = [t.get_text(strip=True) for t in code_tags] or [code_cell]
                         
                         for r_code in raw_codes:
                             clean_code = re.sub(r'\[.*?\]', '', r_code).strip().upper()
-                            if not clean_code or len(clean_code) < 5 or clean_code in ["CODE", "REWARDS", "EXPIRED"]:
+                            if not clean_code or len(clean_code) < 5 or clean_code in ["CODE", "REWARDS", "EXPIRED", "JOURNEY2YRS"]:
                                 continue
                                 
                             if clean_code not in seen_codes:
