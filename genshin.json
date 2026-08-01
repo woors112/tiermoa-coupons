@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "code": "GENSHINGIFT",
+    "rewards": "원석 50개, 영웅의 경험 3개",
+    "status": "ACTIVE",
+    "expiry_note": "상시 유효",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "2BJ64QRZ7RT8",
+    "rewards": "원석 60개, 모험가의 경험 5개",
+    "status": "ACTIVE",
+    "expiry_note": "유효",
+    "updated_at": "2026.08.02. 04시 갱신"
+  },
+  {
+    "code": "LEGEDILJKSGM",
+    "rewards": "원석 60개, 모험가의 경험 5개",
+    "status": "ACTIVE",
+    "expiry_note": "September 2, 2026까지",
+    "updated_at": "2026.08.02. 04시 갱신"
+  }
+]
