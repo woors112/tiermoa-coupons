@@ -5,7 +5,6 @@ on:
     - cron: '0 */6 * * *' # 6시간마다 자동 실행
   workflow_dispatch: # 수동 실행 버튼
 
-# 깃허브 봇에게 저장소 파일 쓰기 권한 부여
 permissions:
   contents: write
 
@@ -34,4 +33,5 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add afk_journey.json
           git commit -m "Auto update afk_journey.json" || exit 0
-          git push
+          git pull --rebase origin main
+          git push origin main
