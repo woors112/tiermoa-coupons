@@ -3,8 +3,8 @@ import os
 import re
 import urllib.request
 from datetime import datetime, timezone, timedelta
-import cloudscraper
 from bs4 import BeautifulSoup
+import cloudscraper
 
 # 한국 표준시(KST) 타임존 설정 (UTC+9)
 KST = timezone(timedelta(hours=9))
@@ -57,38 +57,55 @@ def translate_genshin_rewards(rewards_text):
 
     return ", ".join(translated_items) if translated_items else "원석 및 인게임 보상"
 
-def process_genshin():
-    """원신 위키 전용 크롤러 + 100% 차단 방어 백업 데이터"""
-    url = "https://genshin-impact.fandom.com/wiki/Promotional_Code"
-    print("=== [원신 (Fandom Wiki)] 정밀 수집 시작 ===")
-    
-    active_coupons = []
-    expired_coupons = []
-    seen_codes = set()
-    
-    html = ""
+def fetch_fandom_via_api():
+    """1. Fandom Wiki MediaWiki API 수집"""
+    api_url = "https://genshin-impact.fandom.com/api.php?action=parse&page=Promotional_Code&format=json"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    req = urllib.request.Request(api_url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            res_json = json.loads(resp.read().decode('utf-8'))
+            return res_json.get('parse', {}).get('text', {}).get('*', '')
+    except Exception as e:
+        print(f"[Fandom API 실패]: {e}")
+        return ""
+
+def fetch_pcgamesn():
+    """2. PCGamesN 사이트 수집"""
+    url = "https://www.pcgamesn.com/genshin-impact/codes"
     try:
         scraper = cloudscraper.create_scraper()
         resp = scraper.get(url, timeout=15)
         if resp.status_code == 200:
-            html = resp.text
+            return resp.text
     except Exception as e:
-        print(f"[Genshin Cloudscraper 실패]: {e}")
+        print(f"[PCGamesN 실패]: {e}")
+    return ""
 
-    if not html:
-        try:
-            req = urllib.request.Request(
-                url, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            )
-            with urllib.request.urlopen(req, timeout=15) as response:
-                html = response.read().decode('utf-8')
-        except Exception as e:
-            print(f"[Genshin Urllib 실패]: {e}")
+def fetch_hoyolab():
+    """3. HoYoLAB 공식 사이트 수집"""
+    url = "https://www.hoyolab.com/search/1?keyword=Genshin%20Impact%20redeem%20code"
+    try:
+        scraper = cloudscraper.create_scraper()
+        resp = scraper.get(url, timeout=15)
+        if resp.status_code == 200:
+            return resp.text
+    except Exception as e:
+        print(f"[HoYoLAB 실패]: {e}")
+    return ""
 
-    if html:
+def process_genshin():
+    print("=== [원신 (Fandom API + PCGamesN + HoYoLAB)] 3중 교차 수집 시작 ===")
+    
+    active_coupons = []
+    expired_coupons = []
+    seen_codes = set()
+
+    # --- 1차: Fandom Wiki 정밀 수집 ---
+    fandom_html = fetch_fandom_via_api()
+    if fandom_html:
         try:
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(fandom_html, 'html.parser')
             tables = soup.find_all('table', class_=['article-table', 'wikitable'])
             
             for table in tables:
@@ -98,68 +115,103 @@ def process_genshin():
                     if len(cols) < 4:
                         continue
                     
-                    code_raw = cols[0].get_text(strip=True)
                     server_raw = cols[1].get_text(strip=True)
                     reward_raw = cols[2].get_text('\n', strip=True)
                     duration_raw = cols[3].get_text(' ', strip=True)
                     
-                    if "Code" in code_raw and "Server" in server_raw:
+                    if "Server" in server_raw and "Rewards" in reward_raw:
                         continue
-                        
-                    # 한국 서버(Asia / Global)만 필터링 (China 전용 제외)
                     if "China" in server_raw and "Asia" not in server_raw:
                         continue
-                        
-                    code = re.sub(r'\[.*?\]', '', code_raw).strip()
-                    if not code or len(code) < 4:
-                        continue
-                        
-                    code_upper = code.upper()
-                    if code_upper in seen_codes:
-                        continue
-                        
-                    rewards_ko = translate_genshin_rewards(reward_raw)
-                    is_expired = "Expired" in duration_raw or "expired" in cols[3].get('class', [])
                     
-                    if is_expired:
-                        status = "EXPIRED"
-                        exp_match = re.search(r'Expired:\s*([A-Za-z]+\s+\d{1,2},\s*\d{4})', duration_raw, re.IGNORECASE)
-                        expiry_note = f"{exp_match.group(1)} 만료됨" if exp_match else "사용 만료"
-                    else:
-                        status = "ACTIVE"
-                        valid_match = re.search(r'Valid until:\s*([A-Za-z]+\s+\d{1,2},\s*\d{4})', duration_raw, re.IGNORECASE)
-                        if valid_match:
-                            expiry_note = f"{valid_match.group(1)}까지"
-                        elif "indefinite" in duration_raw.lower():
-                            expiry_note = "상시 유효"
-                        else:
-                            expiry_note = "유효"
+                    code_texts = [code_tag.get_text(strip=True) for code_tag in cols[0].find_all(['code', 'a', 'b', 'span'])]
+                    if not code_texts:
+                        code_texts = [cols[0].get_text(strip=True)]
+                        
+                    for raw_code in code_texts:
+                        code = re.sub(r'\[.*?\]', '', raw_code).strip()
+                        if not code or len(code) < 4 or code.upper() in ["CODE", "SERVER"]:
+                            continue
                             
-                    coupon_obj = {
-                        "code": code_upper,
-                        "rewards": rewards_ko,
-                        "status": status,
-                        "expiry_note": expiry_note,
-                        "updated_at": NOW_KST_STR
-                    }
-                    
-                    if status == "ACTIVE":
-                        active_coupons.append(coupon_obj)
-                    else:
-                        expired_coupons.append(coupon_obj)
+                        code_upper = code.upper()
+                        if code_upper in seen_codes:
+                            continue
+                            
+                        rewards_ko = translate_genshin_rewards(reward_raw)
+                        is_expired = "Expired" in duration_raw or "expired" in cols[3].get('class', [])
                         
-                    seen_codes.add(code_upper)
+                        if is_expired:
+                            status = "EXPIRED"
+                            exp_match = re.search(r'Expired:\s*([A-Za-z]+\s+\d{1,2},\s*\d{4})', duration_raw, re.IGNORECASE)
+                            expiry_note = f"{exp_match.group(1)} 만료됨" if exp_match else "사용 만료"
+                        else:
+                            status = "ACTIVE"
+                            valid_match = re.search(r'Valid until:\s*([A-Za-z]+\s+\d{1,2},\s*\d{4})', duration_raw, re.IGNORECASE)
+                            if valid_match:
+                                expiry_note = f"{valid_match.group(1)}까지"
+                            elif "indefinite" in duration_raw.lower():
+                                expiry_note = "상시 유효"
+                            else:
+                                expiry_note = "유효"
+                                
+                        coupon_obj = {
+                            "code": code_upper,
+                            "rewards": rewards_ko,
+                            "status": status,
+                            "expiry_note": expiry_note,
+                            "updated_at": NOW_KST_STR
+                        }
+                        
+                        if status == "ACTIVE":
+                            active_coupons.append(coupon_obj)
+                        else:
+                            expired_coupons.append(coupon_obj)
+                            
+                        seen_codes.add(code_upper)
         except Exception as e:
-            print(f"[Genshin 파싱 오류]: {e}")
+            print(f"[Fandom 파싱 에러]: {e}")
 
-    # 🛡️ 위키 차단 시 사이트가 깨지지 않도록 보장하는 최신 기본 리딤코드 목록
-    fallback_defaults = [
+    # --- 2차 & 3차: PCGamesN & HoYoLAB 추가 수집 (누락 보완) ---
+    extra_htmls = [fetch_pcgamesn(), fetch_hoyolab()]
+    for html_text in extra_htmls:
+        if not html_text:
+            continue
+        soup = BeautifulSoup(html_text, 'html.parser')
+        paragraphs = soup.find_all(['p', 'li', 'td', 'strong', 'code'])
+        for p in paragraphs:
+            text = p.get_text()
+            code_matches = re.findall(r'\b[A-Za-z0-9]{8,18}\b', text)
+            for code in code_matches:
+                code_upper = code.upper()
+                if code_upper in seen_codes:
+                    continue
+                # 오탐 단어 제외
+                if any(kw in code_upper for kw in ['GENSHIN', 'IMPACT', 'PCGAMESN', 'HOYOLAB', 'ARTICLE', 'VERSION', 'DISCOVERED', 'PROMOTIONAL']):
+                    continue
+                
+                # 새로운 코드가 발견되었을 때 등록
+                active_coupons.append({
+                    "code": code_upper,
+                    "rewards": "원석 및 인게임 보상 (공식 지원)",
+                    "status": "ACTIVE",
+                    "expiry_note": "유효",
+                    "updated_at": NOW_KST_STR
+                })
+                seen_codes.add(code_upper)
+
+    # --- 4차: 상시 안전 기본 리딤코드 데이터 세트 보장 ---
+    full_backups = [
         {"code": "GENSHINGIFT", "rewards": "원석 50개, 영웅의 경험 3개", "status": "ACTIVE", "expiry_note": "상시 유효", "updated_at": NOW_KST_STR},
+        {"code": "EVERWINTER", "rewards": "원석 100개, 정제용 마법 광물 10개", "status": "ACTIVE", "expiry_note": "August 3, 2026까지", "updated_at": NOW_KST_STR},
+        {"code": "ONTOSNEZHNAYA", "rewards": "원석 100개, 영웅의 경험 5개", "status": "ACTIVE", "expiry_note": "August 3, 2026까지", "updated_at": NOW_KST_STR},
+        {"code": "ODETTE0812", "rewards": "원석 100개, 모라 50,000개", "status": "ACTIVE", "expiry_note": "August 3, 2026까지", "updated_at": NOW_KST_STR},
+        {"code": "LEGEDILJKSGM", "rewards": "원석 60개, 모험가의 경험 5개", "status": "ACTIVE", "expiry_note": "September 2, 2026까지", "updated_at": NOW_KST_STR},
         {"code": "2BJ64QRZ7RT8", "rewards": "원석 60개, 모험가의 경험 5개", "status": "ACTIVE", "expiry_note": "유효", "updated_at": NOW_KST_STR},
-        {"code": "LEGEDILJKSGM", "rewards": "원석 60개, 모험가의 경험 5개", "status": "ACTIVE", "expiry_note": "September 2, 2026까지", "updated_at": NOW_KST_STR}
+        {"code": "UIVIBUQM6Q8A", "rewards": "모라 10,000개, 모험가의 경험 10개, 양질의 마법 광물 5개, 절운고추 닭고기 무침 5개, 생선 볶음면 5개", "status": "ACTIVE", "expiry_note": "유효", "updated_at": NOW_KST_STR},
+        {"code": "UIVI13C8X156", "rewards": "모라 10,000개, 모험가의 경험 10개, 양질의 마법 광물 5개, 절운고추 닭고기 무침 5개, 생선 볶음면 5개", "status": "ACTIVE", "expiry_note": "유효", "updated_at": NOW_KST_STR}
     ]
 
-    for fb in fallback_defaults:
+    for fb in full_backups:
         if fb["code"] not in seen_codes:
             active_coupons.append(fb)
 
@@ -167,7 +219,7 @@ def process_genshin():
     with open("genshin.json", "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
         
-    print(f"[genshin.json] 저장 완료! (총 {len(final_list)}개 코드)")
+    print(f"[genshin.json] 수집 완료! (총 {len(final_list)}개 코드)")
 
 def process_afk_journey():
     """AFK 새로운 여정 자동 크롤러"""
