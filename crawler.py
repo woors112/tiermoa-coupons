@@ -1,9 +1,9 @@
-import requests
-from bs4 import BeautifulSoup
 import json
 import os
 import re
 from datetime import datetime
+import cloudscraper
+from bs4 import BeautifulSoup
 
 # 1. 게임별 타겟 URL 및 저장 파일 설정
 GAMES_CONFIG = {
@@ -39,7 +39,11 @@ def translate_to_korean(raw_text):
     for eng, kor in ITEM_TRANSLATIONS.items():
         pattern = re.compile(re.escape(eng), re.IGNORECASE)
         result = pattern.sub(kor, result)
-    return result.strip()
+    
+    # 특수문자 및 불필요한 공백 정리
+    result = re.sub(r'[\r\n\t]+', ' ', result)
+    result = re.sub(r'\s+', ' ', result).strip()
+    return result if result else "게임 보상 아이템"
 
 def process_game_coupons(game_key, config):
     print(f"[{config['name']}] 쿠폰 수집 시작...")
@@ -48,36 +52,59 @@ def process_game_coupons(game_key, config):
     
     # 기존 데이터 불러오기
     if os.path.exists(file_name):
-        with open(file_name, "r", encoding="utf-8") as f:
-            existing_data = json.load(f)
+        try:
+            with open(file_name, "r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+        except Exception:
+            existing_data = []
     else:
         existing_data = []
 
-    # 크롤링 요청
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    # Cloudflare 우회 세션 생성
+    scraper = cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'desktop': True
+        }
+    )
+    
     scraped_coupons = {}
     
     try:
-        res = requests.get(url, headers=headers, timeout=10)
+        res = scraper.get(url, timeout=15)
+        print(f"응답 코드: {res.status_code}")
+        
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
-            # afk.global 표(tr) 및 카드 요소에서 쿠폰 추출
-            items = soup.select("tr, .code-row, .coupon-item")
-            for item in items:
-                text = item.get_text(separator=" ")
-                # 5자리 이상 대문자/숫자 코드를 검색
-                code_match = re.search(r'\b[A-Z0-9]{5,20}\b', text)
-                if code_match:
-                    code = code_match.group(0)
+            
+            # 1단계: 테이블 행(tr), 리스트(li), 카드 요소 탐색
+            elements = soup.select("tr, li, .code-card, .coupon-item, td, div")
+            
+            for el in elements:
+                text = el.get_text(separator=" ")
+                # 영문 대문자+숫자 조합 5~20자리 쿠폰 코드 패턴
+                code_matches = re.findall(r'\b[A-Z0-9]{5,20}\b', text)
+                
+                for code in code_matches:
+                    # 제외할 단어 및 시스템 예약어 필터링
+                    ignored_words = {"CODES", "AFKJOURNEY", "GLOBAL", "HTTPS", "GLOBAL", "TIERLIST", "DISCORD", "REDDIT"}
+                    if code in ignored_words:
+                        continue
+                        
                     rewards = translate_to_korean(text.replace(code, ""))
-                    scraped_coupons[code] = rewards
+                    if code not in scraped_coupons:
+                        scraped_coupons[code] = rewards
+
     except Exception as e:
         print(f"[{config['name']}] 크롤링 실패: {e}")
+
+    print(f"수집된 쿠폰 개수: {len(scraped_coupons)}개")
 
     # 3단계 라이프사이클 처리
     today = datetime.now()
     today_str = today.strftime("%Y-%m-%d")
-    coupon_dict = {item['code']: item for item in existing_data}
+    coupon_dict = {item['code']: item for item in existing_data if 'code' in item}
 
     # A. 신규 및 활성 쿠폰 반영
     for code, rewards in scraped_coupons.items():
@@ -105,10 +132,13 @@ def process_game_coupons(game_key, config):
             item["expired_at"] = today_str
 
         # 만료된 지 7일 경과 여부 확인
-        if item["status"] == "EXPIRED" and item["expired_at"]:
-            expired_date = datetime.strptime(item["expired_at"], "%Y-%m-%d")
-            if (today - expired_date).days > 7:
-                continue # 7일 경과 시 목록에서 완전 삭제
+        if item["status"] == "EXPIRED" and item.get("expired_at"):
+            try:
+                expired_date = datetime.strptime(item["expired_at"], "%Y-%m-%d")
+                if (today - expired_date).days > 7:
+                    continue # 7일 경과 시 완전 삭제
+            except Exception:
+                pass
 
         updated_data.append(item)
 
