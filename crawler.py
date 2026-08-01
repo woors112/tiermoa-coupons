@@ -3,11 +3,11 @@ import os
 import re
 import urllib.request
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime
 import cloudscraper
 from bs4 import BeautifulSoup
 
-# 1. 게임 및 수집 타겟 설정
+# 1. 게임 수집 대상 및 커뮤니티 설정
 GAMES_CONFIG = {
     "afk-journey": {
         "name": "AFK 새로운 여정",
@@ -17,24 +17,20 @@ GAMES_CONFIG = {
     }
 }
 
-# 2. 크롤링 차단 시스템 노이즈 키워드 (Blacklist)
+# 2. 크롤링 노이즈 방지 차단 단어 목록 (Blacklist)
 EXCLUDED_CODES = {
     "OVERVIEW", "JOURNEY", "FEATURED", "CHARACTERS", "TIERLIST", "PATCH",
     "NOTES", "NEWS", "EVENTS", "DATABASES", "TERMS", "PRIVACY", "DISCORD",
     "REDDIT", "GLOBAL", "AFKJOURNEY", "REDEMPTION", "GUIDES", "DATABASE",
-    "MODES", "RESOURCES", "COOKIES", "POLICY", "RIGHTS", "RESERVED", "SEARCH",
-    "ACTIVE", "EXPIRED", "SHOW", "MORE", "LESS", "READ", "CLICK", "COPY",
-    "REDEEM", "GAME", "CODE", "CODES", "LATEST", "BUILD", "UPDATE", "HOME",
-    "CONTACT", "ABOUT", "ALL", "TIER", "LIST", "ITEM", "ITEMS", "HERO", "HEROES",
-    "HTTPS", "WWW", "AFK", "LILITH", "GAMES", "COMMUNITY", "SUMMON", "TICKETS",
-    "ARENA", "MOBILE", "ANDROID", "APPLE", "GOOGLE", "STORE", "PLAY", "ONLINE",
-    "NAVER", "LOUNGE", "LOUNGEID", "NOTICE", "BOARD", "BUFFHUB"
+    "MODES", "RESOURCES", "RESOURCE", "AFFILIATED", "AFFILIATE", "COOKIES",
+    "POLICY", "RIGHTS", "RESERVED", "SEARCH", "ACTIVE", "EXPIRED", "SHOW",
+    "MORE", "LESS", "READ", "CLICK", "COPY", "REDEEM", "GAME", "CODE",
+    "CODES", "LATEST", "BUILD", "UPDATE", "HOME", "CONTACT", "ABOUT",
+    "ALL", "TIER", "LIST", "ITEM", "ITEMS", "HERO", "HEROES", "HTTPS",
+    "WWW", "AFK", "LILITH", "GAMES", "COMMUNITY", "SUMMON", "TICKETS"
 }
 
-# 3. 상시 유지 영구 쿠폰 예외 목록
-PERMANENT_CODES = {"AFKJ10"}
-
-# 4. 한국 공식 보상 명칭 사전
+# 3. 한국어 서비스 공식 아이템 보상 명칭 사전
 ITEM_TRANSLATIONS = {
     "Epic Invite Letters": "에픽 초대장",
     "Epic Invite Letter": "에픽 초대장",
@@ -54,42 +50,8 @@ ITEM_TRANSLATIONS = {
     "Hamster": "종이접기 햄스터"
 }
 
-def parse_expiry_date(text, base_date):
-    """텍스트 내 유효기간(~2026.08.31, ~8월 31일 등) 정밀 추출"""
-    curr_year = base_date.year
-    
-    # 패턴 A: YYYY.MM.DD / YYYY-MM-DD / YYYY/MM/DD
-    match_full = re.search(r'20\d{2}[.-/](\d{1,2})[.-/](\d{1,2})', text)
-    if match_full:
-        m, d = int(match_full.group(1)), int(match_full.group(2))
-        try:
-            return datetime(curr_year, m, d).strftime("%Y-%m-%d")
-        except ValueError:
-            pass
-
-    # 패턴 B: ~M월 D일 / ~MM월 DD일
-    match_kor = re.search(r'(?:~\s*|까지\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일', text)
-    if match_kor:
-        m, d = int(match_kor.group(1)), int(match_kor.group(2))
-        try:
-            return datetime(curr_year, m, d).strftime("%Y-%m-%d")
-        except ValueError:
-            pass
-
-    # 패턴 C: ~M/D / ~MM/DD
-    match_slash = re.search(r'(?:~\s*|까지\s*)(\d{1,2})/(\d{1,2})', text)
-    if match_slash:
-        m, d = int(match_slash.group(1)), int(match_slash.group(2))
-        try:
-            return datetime(curr_year, m, d).strftime("%Y-%m-%d")
-        except ValueError:
-            pass
-
-    # 만료일 미기재 시 기본 14일 부여
-    return (base_date + timedelta(days=14)).strftime("%Y-%m-%d")
-
 def translate_english_rewards(text):
-    """글로벌 영문 보상 문구를 한국 공식 서비스 명칭으로 정밀 변환"""
+    """영문 보상 정보를 한국 공식 명칭으로 정밀 치환"""
     if not text:
         return "게임 아이템 보상"
         
@@ -101,7 +63,7 @@ def translate_english_rewards(text):
     
     for match in pattern1.finditer(text):
         item_raw, qty_raw = match.group(1), match.group(2)
-        translated = ITEM_TRANSLATIONS.get(item_raw, "아이템")
+        translated = "아이템"
         for eng, kor in ITEM_TRANSLATIONS.items():
             if eng.lower() == item_raw.lower():
                 translated = kor
@@ -114,7 +76,7 @@ def translate_english_rewards(text):
         
     for match in pattern2.finditer(text):
         qty_raw, item_raw = match.group(1), match.group(2)
-        translated = ITEM_TRANSLATIONS.get(item_raw, "아이템")
+        translated = "아이템"
         for eng, kor in ITEM_TRANSLATIONS.items():
             if eng.lower() == item_raw.lower():
                 translated = kor
@@ -126,9 +88,11 @@ def translate_english_rewards(text):
         
     return "게임 아이템 보상"
 
-def fetch_global_db_coupons(url):
-    """1차 수집: 글로벌 DB / BuffHub 수집망 스캔"""
-    coupons = {}
+def check_buffhub_global_db(url):
+    """1. BuffHub / 글로벌 DB 아카이브(Active vs Expired) 구역 역추적"""
+    active_codes = {}
+    expired_codes = set()
+    
     scraper = cloudscraper.create_scraper(
         browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
     )
@@ -136,42 +100,47 @@ def fetch_global_db_coupons(url):
         res = scraper.get(url, timeout=15)
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
-            for cand in soup.find_all(['div', 'tr', 'li', 'td', 'p']):
+            
+            # 1-1. DB 내 Expired(만료 아카이브) 구역 감지
+            expired_elements = soup.find_all(class_=re.compile(r'expired', re.I)) + soup.find_all(id=re.compile(r'expired', re.I))
+            for elem in expired_elements:
+                found_expired = re.findall(r'\b[A-Z0-9]{5,20}\b', elem.get_text())
+                for code in found_expired:
+                    if code not in EXCLUDED_CODES:
+                        expired_codes.add(code)
+
+            # 1-2. DB 내 Active 구역 추출
+            for cand in soup.find_all(['tr', 'li', 'div', 'p']):
                 text = cand.get_text(separator=" ").strip()
-                if len(text) > 250:
+                if len(text) > 220:
                     continue
                 codes = re.findall(r'\b[A-Z0-9]{5,20}\b', text)
                 for code in codes:
-                    if code in EXCLUDED_CODES:
-                        continue
-                    reward = translate_english_rewards(text)
-                    if code not in coupons or (coupons[code] == "게임 아이템 보상" and reward != "게임 아이템 보상"):
-                        coupons[code] = reward
-    except Exception as e:
-        print(f"글로벌 DB 수집 예외: {e}")
-    return coupons
+                    if code not in EXCLUDED_CODES and code not in expired_codes:
+                        reward = translate_english_rewards(text)
+                        if code not in active_codes or (active_codes[code] == "게임 아이템 보상" and reward != "게임 아이템 보상"):
+                            active_codes[code] = reward
 
-def fetch_naver_lounge_verification(lounge_id):
-    """2차 수집: 한국 공식 네이버 라운지 실시간 검증 데이터 스캔"""
-    verification_db = {}
-    today = datetime.now()
-    
+    except Exception as e:
+        print(f"BuffHub/글로벌 DB 파싱 예외: {e}")
+        
+    return active_codes, expired_codes
+
+def fetch_developer_official_logs(lounge_id):
+    """2. 릴리스/파라이트 게임즈 공식 커뮤니티 GM 공지 로그 역추적"""
+    official_expired_codes = set()
     encoded_query = urllib.parse.quote("쿠폰")
     url = f"https://game.naver.com/api/v2/lounge/{lounge_id}/board/search?query={encoded_query}&limit=15"
     
     req = urllib.request.Request(
         url,
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer": f"https://game.naver.com/lounge/{lounge_id}/home"
-        }
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     )
     
     try:
         with urllib.request.urlopen(req, timeout=10) as res:
             if res.getcode() == 200:
-                body = res.read().decode('utf-8')
-                data = json.loads(body)
+                data = json.loads(res.read().decode('utf-8'))
                 posts = data.get("content", {}).get("list", [])
                 
                 for post in posts:
@@ -179,99 +148,58 @@ def fetch_naver_lounge_verification(lounge_id):
                     content = post.get("content", "")
                     full_text = f"{title} {content}"
                     
-                    codes = re.findall(r'\b[A-Z0-9]{5,20}\b', full_text)
-                    is_expired_reported = any(kw in full_text for kw in ["만료", "종료", "기간지남", "사용불가", "안됨"])
-                    expiry_date_str = parse_expiry_date(full_text, today)
-                    
-                    for code in codes:
-                        if code in EXCLUDED_CODES:
-                            continue
-                        verification_db[code] = {
-                            "is_expired": is_expired_reported,
-                            "expired_at": expiry_date_str,
-                            "raw_text": full_text
-                        }
+                    # 개발사 공지에 '만료', '종료', '사용 불가' 명시 로그 감지
+                    if any(kw in full_text for kw in ["만료", "종료", "사용불가", "사용 불가"]):
+                        codes = re.findall(r'\b[A-Z0-9]{5,20}\b', full_text)
+                        for code in codes:
+                            if code not in EXCLUDED_CODES:
+                                official_expired_codes.add(code)
     except Exception as e:
-        print(f"네이버 라운지 검증 수집 예외: {e}")
+        print(f"개발사 공식 라운지 로그 역추적 예외: {e}")
         
-    return verification_db
+    return official_expired_codes
 
 def process_game_coupons(game_key, config):
-    print(f"[{config['name']}] 글로벌 DB + 한국 공식 커뮤니티 팩트체크 수집 시작...")
+    print(f"[{config['name']}] DB 아카이브 & 개발사 공식 로그 정밀 팩트체크 시작...")
     file_name = config["file_name"]
     today = datetime.now()
     today_str = today.strftime("%Y-%m-%d")
     
-    # 1차: 글로벌 DB 크롤링
-    global_coupons = fetch_global_db_coupons(config["global_db_url"])
+    # 1. BuffHub / 글로벌 DB 구역 스캔
+    active_from_db, expired_from_db = check_buffhub_global_db(config["global_db_url"])
     
-    # 2차: 한국 공식 라운지 팩트체크 데이터 수집
-    lounge_verification = fetch_naver_lounge_verification(config["lounge_id"])
+    # 2. 개발사 공식 라운지 로그 역추적
+    official_expired_logs = fetch_developer_official_logs(config["lounge_id"])
     
-    # 3차: 교차 대조 및 팩트체크 판별 (Cross-Fact-Checking)
-    fact_checked_dict = {}
+    # 3. 팩트체크 교차 검증
+    final_list = []
     
-    # A. 수집된 모든 쿠폰 코드 취합
-    all_codes = set(global_coupons.keys()).union(set(lounge_verification.keys()))
-    
-    for code in all_codes:
-        if code in EXCLUDED_CODES:
-            continue
-            
-        reward = global_coupons.get(code, "게임 아이템 보상")
+    for code, reward in active_from_db.items():
+        # 상시 영구 쿠폰 예외
         if code == "AFKJ10":
+            status = "ACTIVE"
             reward = "일반 전체 소환권 10개"
         elif code == "HQC0ZFSC6QYTX":
             reward = "다이아 500개, 종이접기 햄스터 5개, 골드 5만개"
-            
-        verification = lounge_verification.get(code, {})
-        is_community_expired = verification.get("is_expired", False)
-        exp_date_str = verification.get("expired_at", (today + timedelta(days=14)).strftime("%Y-%m-%d"))
-        
-        # 상태 결정 (상시 쿠폰 예외)
-        if code in PERMANENT_CODES:
             status = "ACTIVE"
-            exp_date_str = None
         else:
-            # 팩트체크 조건 1: 커뮤니티 만료 제보 확인 시
-            # 팩트체크 조건 2: 만료 날짜가 오늘 이전인 경우
-            is_date_expired = False
-            try:
-                exp_dt = datetime.strptime(exp_date_str, "%Y-%m-%d")
-                if exp_dt < today:
-                    is_date_expired = True
-            except Exception:
-                pass
+            # DB 만료 구역에 속하거나, 개발사 공식 로그에서 만료로 판명된 경우
+            is_expired = (code in expired_from_db) or (code in official_expired_logs)
+            status = "EXPIRED" if is_expired else "ACTIVE"
 
-            if is_community_expired or is_date_expired:
-                status = "EXPIRED"
-            else:
-                status = "ACTIVE"
-
-        fact_checked_dict[code] = {
+        final_list.append({
             "code": code,
             "rewards": reward,
             "status": status,
             "created_at": today_str,
-            "expired_at": exp_date_str if status == "EXPIRED" else None
-        }
+            "expired_at": today_str if status == "EXPIRED" else None
+        })
 
-    # 4차: 만료 후 7일 경과 데이터 완전 자동 정기 삭제
-    final_data = []
-    for code, item in fact_checked_dict.items():
-        if item["status"] == "EXPIRED" and item.get("expired_at"):
-            try:
-                exp_dt = datetime.strptime(item["expired_at"], "%Y-%m-%d")
-                if (today - exp_dt).days > 7:
-                    continue # 7일 경과 시 정기 완전 삭제
-            except Exception:
-                pass
-        final_data.append(item)
-
-    # JSON 최종 저장
+    # JSON 저장
     with open(file_name, "w", encoding="utf-8") as f:
-        json.dump(final_data, f, ensure_ascii=False, indent=2)
-    print(f"[{config['name']}] 실시간 팩트체크 및 검증 완료! (총 {len(final_data)}개 쿠폰 처리됨)")
+        json.dump(final_list, f, ensure_ascii=False, indent=2)
+        
+    print(f"[{config['name']}] 팩트체크 완료! (최종 수집: {len(final_list)}개)")
 
 if __name__ == "__main__":
     for game_key, config in GAMES_CONFIG.items():
