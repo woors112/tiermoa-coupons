@@ -68,86 +68,56 @@ def translate_genshin_rewards(rewards_text):
 
     return ", ".join(translated_items) if translated_items else "원석 및 인게임 보상"
 
-def fetch_genshin_fandom():
-    """원신 위키 전용 cloudscraper 보안회피 수집기"""
-    url = "https://genshin-impact.fandom.com/wiki/Promotional_Code"
-    print("=== [원신 (Fandom Wiki)] 리딤코드 수집 시작 ===")
+def process_genshin():
+    print("=== [원신] 리딤코드 교차 수집 시작 ===")
+    urls = [
+        "https://buffhub.com/blog/genshin-impact/",
+        "https://genshin-impact.fandom.com/wiki/Promotional_Code"
+    ]
     
     active_coupons = []
     expired_coupons = []
     seen_codes = set()
     
-    html = ""
-    # Cloudflare 보안회피 접속
-    try:
-        scraper = cloudscraper.create_scraper()
-        resp = scraper.get(url, timeout=15)
-        if resp.status_code == 200:
-            html = resp.text
-    except Exception as e:
-        print(f"[Genshin Cloudscraper 실패]: {e}")
-
-    # 백업 접속
-    if not html:
+    known_expired = ["GENSHINGIFT_EXPIRED", "CODENAMEK"]
+    
+    scraper = cloudscraper.create_scraper()
+    
+    for url in urls:
+        html = ""
         try:
-            req = urllib.request.Request(
-                url, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            )
-            with urllib.request.urlopen(req, timeout=15) as response:
-                html = response.read().decode('utf-8')
+            resp = scraper.get(url, timeout=15)
+            if resp.status_code == 200:
+                html = resp.text
         except Exception as e:
-            print(f"[Genshin Urllib 실패]: {e}")
-
-    if html:
-        try:
-            soup = BeautifulSoup(html, 'html.parser')
-            tables = soup.find_all('table', class_=['article-table', 'wikitable'])
+            print(f"[{url}] Cloudscraper 접속 실패: {e}")
             
-            for table in tables:
-                rows = table.find_all('tr')
-                for row in rows:
-                    cols = row.find_all(['td', 'th'])
-                    if len(cols) < 4:
-                        continue
-                    
-                    code_cell = cols[0].get_text(strip=True)
-                    server_cell = cols[1].get_text(strip=True)
-                    reward_cell = cols[2].get_text()
-                    duration_cell = cols[3].get_text(strip=True)
-                    
-                    if "China" in server_cell and "Asia" not in server_cell:
-                        continue
-                        
-                    code = re.sub(r'\[.*?\]', '', code_cell).strip()
-                    if not code or len(code) < 4 or code.upper() == "CODE":
-                        continue
-                        
+        if html:
+            soup = BeautifulSoup(html, 'html.parser')
+            # 텍스트 내 리딤코드 추출 (8자리 이상 영대문자/숫자 조합)
+            paragraphs = soup.find_all(['p', 'li', 'td', 'code'])
+            for p in paragraphs:
+                text = p.get_text()
+                code_matches = re.findall(r'\b[A-Za-z0-9]{8,20}\b', text)
+                for code in code_matches:
                     code_upper = code.upper()
                     if code_upper in seen_codes:
                         continue
                         
-                    rewards_ko = translate_genshin_rewards(reward_cell)
-                    is_expired = "Expired" in duration_cell or "expired" in cols[3].get('class', [])
-                    
-                    if is_expired:
-                        status = "EXPIRED"
-                        expiry_note = "사용 만료"
-                    else:
-                        status = "ACTIVE"
-                        if "Valid until:" in duration_cell:
-                            until_date = duration_cell.replace("Valid until:", "").strip()
-                            expiry_note = f"{until_date}까지 유효"
-                        elif "indefinite" in duration_cell:
-                            expiry_note = "상시 유효"
-                        else:
-                            expiry_note = "만료일 미정"
-                            
+                    # 필터링
+                    if any(kw in code_upper for kw in ['BUFFHUB', 'COUPON', 'REDEMPTION', 'GENSHIN', 'PROMOTIONAL', 'VERSION', 'DISCOVERED']):
+                        continue
+                        
+                    status = "EXPIRED" if code_upper in known_expired else "ACTIVE"
+                    rewards = "원석 60개, 모험가의 경험 5개" if status == "ACTIVE" else "사용 만료"
+                    if code_upper == "GENSHINGIFT":
+                        rewards = "원석 50개, 영웅의 경험 3개"
+                        
                     coupon_obj = {
                         "code": code_upper,
-                        "rewards": rewards_ko,
+                        "rewards": rewards,
                         "status": status,
-                        "expiry_note": expiry_note,
+                        "expiry_note": "상시 유효" if code_upper == "GENSHINGIFT" else ("만료일 미정" if status == "ACTIVE" else "사용 만료"),
                         "updated_at": NOW_KST_STR
                     }
                     
@@ -155,25 +125,22 @@ def fetch_genshin_fandom():
                         active_coupons.append(coupon_obj)
                     else:
                         expired_coupons.append(coupon_obj)
-                        
                     seen_codes.add(code_upper)
-        except Exception as e:
-            print(f"[Genshin 파싱 오류]: {e}")
 
-    # 🛡️ 수집 실패 방어용 상시 리딤코드 보장
-    if not active_coupons:
-        fallback_codes = [
-            {"code": "GENSHINGIFT", "rewards": "원석 50개, 영웅의 경험 3개", "status": "ACTIVE", "expiry_note": "상시 유효", "updated_at": NOW_KST_STR}
-        ]
-        for fb in fallback_codes:
-            if fb["code"] not in seen_codes:
-                active_coupons.append(fb)
+    # 상시 활성 보장
+    if "GENSHINGIFT" not in seen_codes:
+        active_coupons.insert(0, {
+            "code": "GENSHINGIFT",
+            "rewards": "원석 50개, 영웅의 경험 3개",
+            "status": "ACTIVE",
+            "expiry_note": "상시 유효",
+            "updated_at": NOW_KST_STR
+        })
 
     final_list = active_coupons + expired_coupons
     with open("genshin.json", "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
-        
-    print(f"[genshin.json] 저장 완료! (총 {len(final_list)}개 코드)")
+    print(f"[genshin.json] 저장 완료! (총 {len(final_list)}개)")
 
 def process_afk_journey():
     """AFK 새로운 여정 자동 크롤러"""
@@ -210,7 +177,7 @@ def process_afk_journey():
                         continue
                 
                 status = "EXPIRED" if code_upper in known_expired else "ACTIVE"
-                reward = reward_overrides.get(code_upper, "인기술 보상 (다이아 / 소환권 / 골드)")
+                reward = reward_overrides.get(code_upper, "인게임 보상 (다이아 / 소환권 / 골드)")
                 expiry_note = "만료일 미정" if status == "ACTIVE" else "사용 만료"
                 
                 coupon_obj = {
@@ -245,7 +212,7 @@ def process_afk_journey():
 
 def main():
     process_afk_journey()
-    fetch_genshin_fandom()
+    process_genshin()
 
 if __name__ == "__main__":
     main()
