@@ -3,21 +3,21 @@
     "code": "EVERWINTER",
     "rewards": "원석,  100개, 정제용 마법 광물,  10개",
     "status": "ACTIVE",
-    "expiry_note": "August 3, 2026까지",
+    "expiry_note": "2026년 8월 3일까지",
     "updated_at": "2026.08.02. 05시 갱신"
   },
   {
     "code": "ONTOSNEZHNAYA",
     "rewards": "원석,  100개, 영웅의 경험,  5개",
     "status": "ACTIVE",
-    "expiry_note": "August 3, 2026까지",
+    "expiry_note": "2026년 8월 3일까지",
     "updated_at": "2026.08.02. 05시 갱신"
   },
   {
     "code": "ODETTE0812",
     "rewards": "원석,  100개, 모라,  50,000개",
     "status": "ACTIVE",
-    "expiry_note": "August 3, 2026까지",
+    "expiry_note": "2026년 8월 3일까지",
     "updated_at": "2026.08.02. 05시 갱신"
   },
   {
@@ -45,7 +45,7 @@
     "code": "LEGEDILJKSGM",
     "rewards": "원석,  60개, 모험가의 경험,  5개",
     "status": "ACTIVE",
-    "expiry_note": "September 2, 2026까지",
+    "expiry_note": "2026년 9월 2일까지",
     "updated_at": "2026.08.02. 05시 갱신"
   },
   {
@@ -59,7 +59,7 @@
     "code": "CODENAMEK",
     "rewards": "가면 무도회 초대장,  1개",
     "status": "EXPIRED",
-    "expiry_note": "July 31, 2026 만료됨",
+    "expiry_note": "2026년 7월 31일 만료됨",
     "updated_at": "2026.08.02. 05시 갱신"
   }
 ]
