@@ -3,9 +3,12 @@ import os
 import re
 import urllib.request
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import cloudscraper
 from bs4 import BeautifulSoup
+
+# 한국 표준시(KST) 타임존 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 # ---------------------------------------------------------------------------
 # 1. 수집 게임 및 타겟 설정
@@ -20,7 +23,7 @@ GAMES_CONFIG = {
 }
 
 # ---------------------------------------------------------------------------
-# 2. 필수 차단 블랙리스트 (메뉴 및 시스템 단어 차단)
+# 2. 필수 차단 블랙리스트
 # ---------------------------------------------------------------------------
 EXCLUDED_CODES = {
     "CODE", "CODES", "STATUS", "EXPIRED", "ACTIVE", "REDEMPTION", "REWARD",
@@ -85,15 +88,18 @@ def fetch_buffhub_data(url):
     return active_coupons, expired_coupons
 
 # ---------------------------------------------------------------------------
-# 5. 메인 처리 프로세스 (시간 및 만료 문구 자동 생성)
+# 5. 메인 처리 프로세스 (KST 시각 포맷 적용)
 # ---------------------------------------------------------------------------
 def process_game_coupons(game_key, config):
-    print(f"[{config['name']}] 정밀 팩트체크 및 날짜/시간 필드 생성 시작...")
     file_name = config["file_name"]
-    now = datetime.now()
-    today_str = now.strftime("%Y-%m-%d")
-    updated_at_str = now.strftime("%Y년 %m월 %d일 %H시 기준") # 최상단 기준 시각
     
+    # 🔥 한국 시간(KST) 기준 날짜 및 시각 생성
+    now_kst = datetime.now(KST)
+    today_str = now_kst.strftime("%Y-%m-%d")
+    updated_at_str = now_kst.strftime("%Y.%m.%d. %H시 갱신") # 예: 2026.08.02. 18시 갱신
+    
+    print(f"[{config['name']}] 정밀 크롤링 시작 (KST 기준시각: {updated_at_str})...")
+
     # BuffHub 수집
     scraped_active, scraped_expired = fetch_buffhub_data(config["buffhub_url"])
     
@@ -110,23 +116,17 @@ def process_game_coupons(game_key, config):
             status = "ACTIVE"
             reward = PERMANENT_ACTIVE_CODES[code]
             expired_at = None
-            expiry_note = "상시 유효 (만료 없음)"
+            expiry_note = "상시 유효"  # 버튼 왼편에 표시될 문구
         elif code in total_expired:
             status = "EXPIRED"
             reward = KNOWN_EXPIRED_CODES.get(code, "게임 아이템 보상")
             expired_at = today_str
-            
-            # 날짜 한글 변환 (2026-08-02 -> 2026년 08월 02일)
-            try:
-                exp_dt = datetime.strptime(expired_at, "%Y-%m-%d")
-                expiry_note = exp_dt.strftime("%Y년 %m월 %d일 만료됨")
-            except Exception:
-                expiry_note = "만료된 쿠폰"
+            expiry_note = f"{now_kst.strftime('%Y.%m.%d.')} 만료" # 예: 2026.08.02. 만료
         else:
             status = "ACTIVE"
             reward = scraped_active.get(code, "게임 아이템 보상")
             expired_at = None
-            expiry_note = "기간 미정 (소진 시까지)"
+            expiry_note = "소진 시까지"
 
         updated_list.append({
             "code": code,
@@ -138,26 +138,26 @@ def process_game_coupons(game_key, config):
             "expired_at": expired_at
         })
 
-    # 6. 만료 후 7일 지난 쿠폰 완전 자동 삭제
+    # 6. 만료 후 7일 지난 쿠폰 자동 삭제
     final_list = []
     for item in updated_list:
         if item["status"] == "EXPIRED" and item.get("expired_at"):
             try:
-                exp_dt = datetime.strptime(item["expired_at"], "%Y-%m-%d")
-                if (now - exp_dt).days > 7:
+                exp_dt = datetime.strptime(item["expired_at"], "%Y-%m-%d").replace(tzinfo=KST)
+                if (now_kst - exp_dt).days > 7:
                     continue
             except Exception:
                 pass
         final_list.append(item)
 
-    # 7. 사용 가능(ACTIVE) 쿠폰 우선 정렬
+    # 7. 사용 가능(ACTIVE) 쿠폰 상단 정렬
     final_list.sort(key=lambda x: (0 if x["status"] == "ACTIVE" else 1, x["code"]))
 
     # JSON 저장
     with open(file_name, "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
         
-    print(f"[{config['name']}] 저장 완료! (기준 시각: {updated_at_str})")
+    print(f"[{config['name']}] 동기화 완료!")
 
 if __name__ == "__main__":
     for game_key, config in GAMES_CONFIG.items():
