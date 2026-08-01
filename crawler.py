@@ -8,20 +8,19 @@ import cloudscraper
 from bs4 import BeautifulSoup
 
 # ---------------------------------------------------------------------------
-# 1. 수집 타겟 및 출처 설정
+# 1. 수집 타겟 및 출처 설정 (진짜 BuffHub URL 반영)
 # ---------------------------------------------------------------------------
 GAMES_CONFIG = {
     "afk-journey": {
         "name": "AFK 새로운 여정",
-        "buffhub_url": "https://www.afk.global/afk-journey/codes",
-        "arca_url": "https://arca.live/b/afkjourney?target=title_content&keyword=%EC%BF%A0%ED%8F%B0",
+        "buffhub_url": "https://buffhub.com/blog/afk-journey/",
         "lounge_id": "AFK_Journey",
         "file_name": "afk_journey.json"
     }
 }
 
 # ---------------------------------------------------------------------------
-# 2. 최소 블랙리스트 및 만료 표현 정밀 감지 키워드
+# 2. 최소 블랙리스트 및 만료 키워드
 # ---------------------------------------------------------------------------
 MINIMUM_EXCLUDED_CODES = {
     "CODE", "CODES", "STATUS", "EXPIRED", "ACTIVE",
@@ -29,7 +28,6 @@ MINIMUM_EXCLUDED_CODES = {
     "GLOBAL", "BUFFHUB", "COPY", "REDEEM", "CLICK", "PREVIOUS"
 }
 
-# 커뮤니티 및 공지에서 등장하는 모든 만료/무효 표현 (정밀 감지)
 EXPIRATION_KEYWORDS = [
     "만료", "종료", "안됨", "안 됨", "지남", "기간지남", "기간 지남",
     "존재하지 않는", "존재하지않는", "올바르지 않은", "올바르지않은",
@@ -59,10 +57,8 @@ ITEM_TRANSLATIONS = {
 }
 
 def translate_rewards(text):
-    """영문 보상 명칭을 한국 공식 명칭으로 정밀 치환"""
     if not text:
         return "게임 아이템 보상"
-        
     found_rewards = []
     items_pattern = r'(?:Epic Invite Letters?|Invite Letters?|Stellar Crystals?|Hero Essence|Soulstones?|Diamonds?|Gold|Summon Tickets?|Hamsters?)'
     
@@ -85,37 +81,37 @@ def translate_rewards(text):
     return ", ".join(list(dict.fromkeys(found_rewards))) if found_rewards else "게임 아이템 보상"
 
 def check_is_expired_text(text):
-    """텍스트에 만료/무효 관련 키워드가 포함되어 있는지 정밀 파싱"""
-    return any(keyword in text for keyword in EXPIRATION_KEYWORDS)
+    return any(kw in text for kw in EXPIRATION_KEYWORDS)
 
 # ---------------------------------------------------------------------------
-# 3. 출처별 정밀 파싱 모듈
+# 3. 진짜 BuffHub(buffhub.com) 표 파싱 모듈
 # ---------------------------------------------------------------------------
 def fetch_buffhub_tables(url):
-    """1. BuffHub: Reported Expiration or Status 표 정밀 파싱"""
     active_coupons = {}
     expired_coupons = set()
     
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
+    scraper = cloudscraper.create_scraper(
+        browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
+    )
     try:
         res = scraper.get(url, timeout=15)
+        print(f"[BuffHub 접속] HTTP 응답 코드: {res.status_code}")
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, "html.parser")
             tables = soup.find_all('table')
+            print(f"[BuffHub 접속] 파싱된 Table 개수: {len(tables)}")
             
             for table in tables:
                 table_text = table.get_text()
-                is_expired_table = any(kw in table_text for kw in ["Reported Expiration", "Expired Code", "Previous Rewards"])
+                is_expired_table = any(kw in table_text for kw in ["Reported Expiration", "Expired Code", "Previous Rewards", "Expired"])
                 
                 rows = table.find_all('tr')
                 for row in rows:
                     cols = row.find_all(['td', 'th'])
                     if not cols:
                         continue
-                    
                     first_col_text = cols[0].get_text().strip()
                     raw_codes = re.findall(r'\b[a-zA-Z0-9]{5,20}\b', first_col_text)
-                    
                     reward_text = cols[1].get_text().strip() if len(cols) > 1 else ""
                     translated_reward = translate_rewards(reward_text)
                     
@@ -123,67 +119,44 @@ def fetch_buffhub_tables(url):
                         code = raw_code.upper()
                         if code in MINIMUM_EXCLUDED_CODES:
                             continue
-                            
                         if is_expired_table:
                             expired_coupons.add(code)
                         else:
                             if code not in active_coupons or (active_coupons[code] == "게임 아이템 보상" and translated_reward != "게임 아이템 보상"):
                                 active_coupons[code] = translated_reward
     except Exception as e:
-        print(f"BuffHub 파싱 예외: {e}")
+        print(f"[BuffHub 접속] 파싱 수집 예외: {e}")
         
+    print(f"[BuffHub 파싱 결과] 활성: {len(active_coupons)}개, 만료: {len(expired_coupons)}개")
     return active_coupons, expired_coupons
 
-def fetch_arca_live(url):
-    """2. 아카라이브 AFK 새로운 여정 채널 키워드 스캔"""
-    arca_expired = set()
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-    try:
-        res = scraper.get(url, timeout=10)
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, "html.parser")
-            articles = soup.find_all('a', class_=re.compile(r'title', re.I))
-            for art in articles:
-                title = art.get_text().strip()
-                if check_is_expired_text(title):
-                    codes = re.findall(r'\b[a-zA-Z0-9]{5,20}\b', title)
-                    for raw_code in codes:
-                        code = raw_code.upper()
-                        if code not in MINIMUM_EXCLUDED_CODES:
-                            arca_expired.add(code)
-    except Exception as e:
-        print(f"아카라이브 파싱 예외: {e}")
-    return arca_expired
-
-def fetch_naver_lounge(lounge_id):
-    """3. 네이버 게임 라운지 공지 및 유저 게시글 만료 표현 스캔"""
-    lounge_expired = set()
-    encoded_query = urllib.parse.quote("쿠폰")
-    url = f"https://game.naver.com/api/v2/lounge/{lounge_id}/board/search?query={encoded_query}&limit=20"
+def verify_code_via_naver_lounge(lounge_id, code):
+    """네이버 게임 라운지 핀포인트 만료 제보 확인"""
+    encoded_code = urllib.parse.quote(code)
+    url = f"https://game.naver.com/api/v2/lounge/{lounge_id}/board/search?query={encoded_code}&limit=10"
     
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    )
     try:
-        with urllib.request.urlopen(req, timeout=10) as res:
+        with urllib.request.urlopen(req, timeout=5) as res:
             if res.getcode() == 200:
                 data = json.loads(res.read().decode('utf-8'))
                 posts = data.get("content", {}).get("list", [])
                 for post in posts:
                     full_text = f"{post.get('title', '')} {post.get('content', '')}"
                     if check_is_expired_text(full_text):
-                        codes = re.findall(r'\b[a-zA-Z0-9]{5,20}\b', full_text)
-                        for raw_code in codes:
-                            code = raw_code.upper()
-                            if code not in MINIMUM_EXCLUDED_CODES:
-                                lounge_expired.add(code)
-    except Exception as e:
-        print(f"네이버 라운지 파싱 예외: {e}")
-    return lounge_expired
+                        return True
+    except Exception:
+        pass
+    return False
 
 # ---------------------------------------------------------------------------
-# 4. 메인 동기화 로직
+# 4. 메인 동기화 프로세스
 # ---------------------------------------------------------------------------
 def process_game_coupons(game_key, config):
-    print(f"[{config['name']}] 확장 만료 키워드 + 출처 통합 팩트체크 크롤링 시작...")
+    print(f"[{config['name']}] 진짜 BuffHub(buffhub.com) 동기화 시작...")
     file_name = config["file_name"]
     today = datetime.now()
     today_str = today.strftime("%Y-%m-%d")
@@ -198,15 +171,11 @@ def process_game_coupons(game_key, config):
         except Exception:
             pass
 
-    # 2. 출처별 수집 및 만료 파싱
+    # 2. BuffHub 수집
     active_buffhub, expired_buffhub = fetch_buffhub_tables(config["buffhub_url"])
-    expired_arca = fetch_arca_live(config["arca_url"])
-    expired_lounge = fetch_naver_lounge(config["lounge_id"])
     
-    total_expired = expired_buffhub.union(expired_arca).union(expired_lounge)
-    
-    # 3. 통합 및 상태 결정
-    all_codes = set(active_buffhub.keys()).union(set(existing_data.keys()))
+    # 3. 데이터 취합
+    all_codes = set(active_buffhub.keys()).union(set(expired_buffhub)).union(set(existing_data.keys()))
     updated_list = []
     
     for code in all_codes:
@@ -217,19 +186,25 @@ def process_game_coupons(game_key, config):
         created_at_str = prev_item.get("created_at", today_str)
         reward = active_buffhub.get(code, prev_item.get("rewards", "게임 아이템 보상"))
         
-        # 특수 상시 쿠폰 고정
+        # 커스텀 보상 지정
         if code == "AFKJ10":
             reward = "일반 전체 소환권 10개"
         elif code == "HQC0ZFSC6QYTX":
             reward = "다이아 500개, 종이접기 햄스터 5개, 골드 5만개"
             
+        # 4. 네이버 라운지 교차 검증
+        is_lounge_expired = verify_code_via_naver_lounge(config["lounge_id"], code)
+        
+        # 5. 최종 만료 상태 판별
         if code in PERMANENT_CODES:
             status = "ACTIVE"
             exp_date_str = None
         else:
-            is_expired = (code in total_expired) or prev_item.get("status") == "EXPIRED"
+            is_expired = (code in expired_buffhub) or is_lounge_expired or (prev_item.get("status") == "EXPIRED")
             status = "EXPIRED" if is_expired else "ACTIVE"
             exp_date_str = prev_item.get("expired_at") or (today_str if status == "EXPIRED" else None)
+
+        print(f" -> 코드: {code} | 상태: {status}")
 
         updated_list.append({
             "code": code,
@@ -239,7 +214,7 @@ def process_game_coupons(game_key, config):
             "expired_at": exp_date_str
         })
 
-    # 4. 만료 후 7일 경과 시 자동 삭제
+    # 6. 만료 후 7일 지난 데이터 완전 자동 삭제
     final_list = []
     for item in updated_list:
         if item["status"] == "EXPIRED" and item.get("expired_at"):
@@ -251,11 +226,11 @@ def process_game_coupons(game_key, config):
                 pass
         final_list.append(item)
 
-    # JSON 저장
+    # JSON 최종 저장
     with open(file_name, "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
         
-    print(f"[{config['name']}] 크롤링 완료! (총 {len(final_list)}개 처리됨)")
+    print(f"[{config['name']}] 진짜 BuffHub 연동 성공! (총 {len(final_list)}개 동기화됨)")
 
 if __name__ == "__main__":
     for game_key, config in GAMES_CONFIG.items():
