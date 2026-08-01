@@ -9,156 +9,126 @@ from bs4 import BeautifulSoup
 
 # 한국 표준시(KST) 타임존 설정 (UTC+9)
 KST = timezone(timedelta(hours=9))
+NOW_KST_STR = datetime.now(KST).strftime("%Y.%m.%d. %H시 갱신")
 
-# ---------------------------------------------------------------------------
-# 1. 수집 게임 및 타겟 설정
-# ---------------------------------------------------------------------------
+# ==========================================
+# 게임별 쿠폰/리딤코드 데이터베이스 및 설정
+# ==========================================
 GAMES_CONFIG = {
-    "afk-journey": {
-        "name": "AFK 새로운 여정",
-        "buffhub_url": "https://buffhub.com/blog/afk-journey/",
-        "lounge_id": "AFK_Journey",
-        "file_name": "afk_journey.json"
+    "afk_journey": {
+        "file_name": "afk_journey.json",
+        "url": "https://buffhub.com/blog/afk-journey/",
+        "always_active": ["AFKJ10"],
+        "known_expired": ["HQCOZFSC6QYTX", "4IYTSNBDXC", "B52F8N5OPOG7K", "E8BESLBQZLZUD", "H7PDTYNR61", "SMALLGIFTFROMPEGGY"],
+        "reward_overrides": {
+            "AFKJ10": "일반 전체 소환권 10개"
+        }
+    },
+    "genshin": {
+        "file_name": "genshin.json",
+        "url": "https://buffhub.com/blog/genshin-impact/",
+        "always_active": [],
+        "known_expired": ["GENSHINGIFT"],
+        "reward_overrides": {}
     }
 }
 
-# ---------------------------------------------------------------------------
-# 2. 필수 차단 블랙리스트
-# ---------------------------------------------------------------------------
-EXCLUDED_CODES = {
-    "CODE", "CODES", "STATUS", "EXPIRED", "ACTIVE", "REDEMPTION", "REWARD",
-    "REWARDS", "AFKJOURNEY", "GLOBAL", "BUFFHUB", "COPY", "REDEEM", "CLICK",
-    "PREVIOUS", "ARENA", "RESOURCE", "AFFILIATED", "OVERVIEW", "JOURNEY",
-    "FEATURED", "CHARACTERS", "TIERLIST", "PATCH", "NOTES", "NEWS", "EVENTS",
-    "DATABASES", "TERMS", "PRIVACY", "DISCORD", "REDDIT", "GUIDES", "DATABASE",
-    "MODES", "RESOURCES", "AFFILIATE", "COOKIES", "POLICY", "RIGHTS", "RESERVED"
-}
-
-# ---------------------------------------------------------------------------
-# 3. 팩트체크 검증 데이터베이스
-# ---------------------------------------------------------------------------
-PERMANENT_ACTIVE_CODES = {
-    "AFKJ10": "일반 전체 소환권 10개",
-    "HQC0ZFSC6QYTX": "다이아 500개, 종이접기 햄스터 5개, 골드 5만개"
-}
-
-KNOWN_EXPIRED_CODES = {
-    "B52F8N5OPOG7K": "다이아 500개, 종이접기 햄스터 10개, 골드 50만개",
-    "ZC1JJ3UU0N": "다이아 1000개, 에픽 초대장 5개, 골드 20만개",
-    "4IYTSNBDXC": "다이아 1000개, 에픽 초대장 5개, 골드 20만개",
-    "H7PDTYNR61": "다이아 1000개, 에픽 초대장 5개, 골드 20만개",
-    "E8BESLBQZLZUD": "다이아 500개, 종이접기 햄스터 10개, 골드 50만개",
-    "SMALLGIFTFROMPEGGY": "다이아 500개, 골드 2만개"
-}
-
-# ---------------------------------------------------------------------------
-# 4. 크롤링 및 파싱 함수
-# ---------------------------------------------------------------------------
-def fetch_buffhub_data(url):
-    active_coupons = {}
-    expired_coupons = set()
-    
-    scraper = cloudscraper.create_scraper(
-        browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
-    )
+def fetch_html_buffhub(url):
+    """Buffhub 웹페이지 HTML 가져오기"""
     try:
-        res = scraper.get(url, timeout=15)
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, "html.parser")
-            for table in soup.find_all('table'):
-                table_text = table.get_text()
-                is_expired = any(kw in table_text for kw in ["Reported Expiration", "Expired Code", "Previous Rewards", "Expired"])
-                
-                for row in table.find_all('tr'):
-                    cols = row.find_all(['td', 'th'])
-                    if not cols:
-                        continue
-                    first_col = cols[0].get_text().strip()
-                    for raw_code in re.findall(r'\b[a-zA-Z0-9]{5,20}\b', first_col):
-                        code = raw_code.upper()
-                        if code in EXCLUDED_CODES:
-                            continue
-                        if is_expired:
-                            expired_coupons.add(code)
-                        else:
-                            active_coupons[code] = "게임 아이템 보상"
+        scraper = cloudscraper.create_scraper()
+        resp = scraper.get(url, timeout=15)
+        if resp.status_code == 200:
+            return resp.text
     except Exception as e:
-        print(f"[BuffHub] 수집 중 예외: {e}")
-        
-    return active_coupons, expired_coupons
+        print(f"[{url}] Cloudscraper 실패: {e}")
+    
+    try:
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
+        with urllib.request.urlopen(req, timeout=15) as response:
+            return response.read().decode('utf-8')
+    except Exception as e:
+        print(f"[{url}] Urllib 실패: {e}")
+        return None
 
-# ---------------------------------------------------------------------------
-# 5. 메인 처리 프로세스 (KST 시각 포맷 적용)
-# ---------------------------------------------------------------------------
 def process_game_coupons(game_key, config):
-    file_name = config["file_name"]
+    print(f"=== [{game_key}] 리딤코드 크롤링 시작 ===")
+    html = fetch_html_buffhub(config["url"])
     
-    # 🔥 한국 시간(KST) 기준 날짜 및 시각 생성
-    now_kst = datetime.now(KST)
-    today_str = now_kst.strftime("%Y-%m-%d")
-    updated_at_str = now_kst.strftime("%Y.%m.%d. %H시 갱신") # 예: 2026.08.02. 18시 갱신
+    active_coupons = []
+    expired_coupons = []
+    seen_codes = set()
     
-    print(f"[{config['name']}] 정밀 크롤링 시작 (KST 기준시각: {updated_at_str})...")
-
-    # BuffHub 수집
-    scraped_active, scraped_expired = fetch_buffhub_data(config["buffhub_url"])
-    
-    total_expired = scraped_expired.union(set(KNOWN_EXPIRED_CODES.keys()))
-    all_codes = set(scraped_active.keys()).union(set(PERMANENT_ACTIVE_CODES.keys())).union(total_expired)
-    
-    updated_list = []
-    
-    for code in all_codes:
-        if code in EXCLUDED_CODES:
-            continue
-            
-        if code in PERMANENT_ACTIVE_CODES:
-            status = "ACTIVE"
-            reward = PERMANENT_ACTIVE_CODES[code]
-            expired_at = None
-            expiry_note = "상시 유효"  # 버튼 왼편에 표시될 문구
-        elif code in total_expired:
-            status = "EXPIRED"
-            reward = KNOWN_EXPIRED_CODES.get(code, "게임 아이템 보상")
-            expired_at = today_str
-            expiry_note = f"{now_kst.strftime('%Y.%m.%d.')} 만료" # 예: 2026.08.02. 만료
-        else:
-            status = "ACTIVE"
-            reward = scraped_active.get(code, "게임 아이템 보상")
-            expired_at = None
-            expiry_note = "소진 시까지"
-
-        updated_list.append({
-            "code": code,
-            "rewards": reward,
-            "status": status,
-            "updated_at": updated_at_str,
-            "expiry_note": expiry_note,
-            "created_at": today_str,
-            "expired_at": expired_at
-        })
-
-    # 6. 만료 후 7일 지난 쿠폰 자동 삭제
-    final_list = []
-    for item in updated_list:
-        if item["status"] == "EXPIRED" and item.get("expired_at"):
-            try:
-                exp_dt = datetime.strptime(item["expired_at"], "%Y-%m-%d").replace(tzinfo=KST)
-                if (now_kst - exp_dt).days > 7:
+    if html:
+        soup = BeautifulSoup(html, 'html.parser')
+        paragraphs = soup.find_all(['p', 'li', 'td'])
+        
+        for p in paragraphs:
+            text = p.get_text()
+            if not text:
+                continue
+                
+            code_matches = re.findall(r'\b[A-Za-z0-9]{8,20}\b', text)
+            for code in code_matches:
+                code_upper = code.upper()
+                if code_upper in seen_codes:
                     continue
-            except Exception:
-                pass
-        final_list.append(item)
+                    
+                # 공통 제외 키워드 필터링
+                if any(kw in code_upper for kw in ['BUFFHUB', 'COUPON', 'REDEMPTION', 'GENSHIN', 'JOURNEY', 'VERSION']):
+                    if code_upper not in config["always_active"] and code_upper not in config["known_expired"]:
+                        continue
 
-    # 7. 사용 가능(ACTIVE) 쿠폰 상단 정렬
-    final_list.sort(key=lambda x: (0 if x["status"] == "ACTIVE" else 1, x["code"]))
+                # 기본 활성/만료 판별
+                if code_upper in config["known_expired"]:
+                    status = "EXPIRED"
+                else:
+                    status = "ACTIVE"
+                    
+                reward = config["reward_overrides"].get(code_upper, "원신 인게임 보상 (원석 / 모라 / 경험치)")
+                expiry_note = "만료일 미정" if status == "ACTIVE" else "사용 만료"
+                
+                coupon_obj = {
+                    "code": code_upper,
+                    "rewards": reward,
+                    "status": status,
+                    "expiry_note": expiry_note,
+                    "updated_at": NOW_KST_STR
+                }
+                
+                if status == "ACTIVE":
+                    active_coupons.append(coupon_obj)
+                else:
+                    expired_coupons.append(coupon_obj)
+                seen_codes.add(code_upper)
 
-    # JSON 저장
-    with open(file_name, "w", encoding="utf-8") as f:
+    # 상시 활성 쿠폰 추가 보장
+    for code in config["always_active"]:
+        if code not in seen_codes:
+            active_coupons.append({
+                "code": code,
+                "rewards": config["reward_overrides"].get(code, "공식 지원 보상"),
+                "status": "ACTIVE",
+                "expiry_note": "상시 유효",
+                "updated_at": NOW_KST_STR
+            })
+            seen_codes.add(code)
+
+    # 최종 정렬 (ACTIVE 우선)
+    final_list = active_coupons + expired_coupons
+    
+    # JSON 파일 저장
+    with open(config["file_name"], "w", encoding="utf-8") as f:
         json.dump(final_list, f, ensure_ascii=False, indent=2)
         
-    print(f"[{config['name']}] 동기화 완료!")
+    print(f"[{config['file_name']}] 저장 완료! (총 {len(final_list)}개 코드)")
 
-if __name__ == "__main__":
+def main():
     for game_key, config in GAMES_CONFIG.items():
         process_game_coupons(game_key, config)
+
+if __name__ == "__main__":
+    main()
